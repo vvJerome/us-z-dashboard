@@ -5,6 +5,10 @@ services:
   postgres:
     image: postgres:16
     restart: unless-stopped
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c max_connections=20
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -17,6 +21,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 300M
 
   # Test-only PostgreSQL — only starts when `--profile test` is passed.
   # Usage: docker compose --profile test up -d postgres-test
@@ -55,6 +63,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
+      JAVA_OPTS: "-Xms256m -Xmx512m"
       DATASOURCES_POSTGRES_URL: "jdbc:postgresql://postgres:5432/kestra"
       DATASOURCES_POSTGRES_DRIVER_CLASS_NAME: "org.postgresql.Driver"
       DATASOURCES_POSTGRES_USERNAME: ${POSTGRES_USER:-scraper}
@@ -75,6 +84,10 @@ services:
       RACKNERD_SSH_PORT: ${RACKNERD_SSH_PORT:-22}
       RACKNERD_SOCKS_PORT: ${RACKNERD_SOCKS_PORT:-1080}
       BBOPS_BASE_URL: ${BBOPS_BASE_URL:-https://email-verifier.bbops.io}
+    deploy:
+      resources:
+        limits:
+          memory: 700M
 
   # ── Application ─────────────────────────────────────────────────────────────
 
@@ -99,6 +112,10 @@ services:
       interval: 15s
       timeout: 5s
       retries: 4
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   dashboard:
     image: ghcr.io/${GITHUB_ORG:-local}/us-z-dashboard-app:${IMAGE_TAG:-latest}
@@ -108,6 +125,10 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
 
   # ── Reverse proxy ───────────────────────────────────────────────────────────
 
@@ -123,6 +144,10 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+    deploy:
+      resources:
+        limits:
+          memory: 64M
 
 volumes:
   postgres_data:
