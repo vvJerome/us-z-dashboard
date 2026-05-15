@@ -1,0 +1,130 @@
+services:
+
+  # ── Data layer ──────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      POSTGRES_DB: scraper
+      POSTGRES_USER: ${POSTGRES_USER:-scraper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scraper} -d scraper"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Test-only PostgreSQL — only starts when `--profile test` is passed.
+  # Usage: docker compose --profile test up -d postgres-test
+  postgres-test:
+    profiles: [test]
+    image: postgres:16
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: scraper_test
+      POSTGRES_USER: scraper
+      POSTGRES_PASSWORD: test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scraper -d scraper_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Orchestration ───────────────────────────────────────────────────────────
+
+  kestra:
+    image: kestra/kestra:latest-full
+    restart: unless-stopped
+    command: server standalone
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - kestra_storage:/app/storage
+      - ./kestra/flows:/app/flows
+      - /var/run/docker.sock:/var/run/docker.sock
+      - data_volume:/data
+      - ${RACKNERD_SSH_KEY_PATH:-/root/.ssh/racknerd_egress}:/root/.ssh/racknerd_egress:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DATASOURCES_POSTGRES_URL: "jdbc:postgresql://postgres:5432/kestra"
+      DATASOURCES_POSTGRES_DRIVER_CLASS_NAME: "org.postgresql.Driver"
+      DATASOURCES_POSTGRES_USERNAME: ${POSTGRES_USER:-scraper}
+      DATASOURCES_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KESTRA_REPOSITORY_TYPE: postgres
+      KESTRA_QUEUE_TYPE: postgres
+      KESTRA_STORAGE_TYPE: local
+      KESTRA_STORAGE_LOCAL_BASE_PATH: /app/storage
+      KESTRA_FLOWS_BASE_PATH: /app/flows
+      KESTRA_SERVER_BASIC_AUTH_ENABLED: "false"
+      GITHUB_ORG: ${GITHUB_ORG}
+      IMAGE_TAG: ${IMAGE_TAG:-latest}
+      KESTRA_WEBHOOK_KEY: ${KESTRA_WEBHOOK_KEY}
+      SERPER_API_KEY: ${SERPER_API_KEY}
+      ZUHAL_API_KEY: ${ZUHAL_API_KEY}
+      RACKNERD_HOST: ${RACKNERD_HOST}
+      RACKNERD_SSH_USER: ${RACKNERD_SSH_USER:-egress}
+      RACKNERD_SSH_PORT: ${RACKNERD_SSH_PORT:-22}
+      RACKNERD_SOCKS_PORT: ${RACKNERD_SOCKS_PORT:-1080}
+      BBOPS_BASE_URL: ${BBOPS_BASE_URL:-https://email-verifier.bbops.io}
+
+  # ── Application ─────────────────────────────────────────────────────────────
+
+  backend:
+    # Production: docker compose pull && docker compose up -d
+    # Local dev:  docker compose up -d --build
+    image: ghcr.io/${GITHUB_ORG:-local}/us-z-backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - data_volume:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+
+  dashboard:
+    image: ghcr.io/${GITHUB_ORG:-local}/us-z-dashboard-app:${IMAGE_TAG:-latest}
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  # ── Reverse proxy ───────────────────────────────────────────────────────────
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - dashboard
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+
+volumes:
+  postgres_data:
+  kestra_storage:
+  data_volume:
