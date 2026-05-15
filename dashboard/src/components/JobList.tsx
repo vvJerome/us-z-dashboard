@@ -3,7 +3,7 @@ import { useJobs } from "../hooks/useJobs";
 import { JobRow } from "./JobRow";
 import { NewJobModal } from "./NewJobModal";
 
-const MAX_CONCURRENT = 5;
+const MAX_CONCURRENT = 1;
 
 export function JobList() {
   const { data, isLoading, isError } = useJobs();

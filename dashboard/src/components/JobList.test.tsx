@@ -41,30 +41,29 @@ describe("JobList", () => {
     expect(await screen.findByText(/no jobs yet/i)).toBeInTheDocument();
   });
 
-  it("enables the Run scraper button when fewer than 5 jobs are RUNNING", async () => {
-    mockJobs([makeJob({ status: "RUNNING" }), makeJob({ status: "RUNNING" })]);
+  it("enables the Run scraper button when no jobs are RUNNING", async () => {
+    mockJobs([makeJob({ status: "QUEUED" })]);
     renderWithQuery(<JobList />);
     const button = await screen.findByRole("button", { name: /run scraper/i });
     expect(button).not.toBeDisabled();
   });
 
-  it("disables the Run scraper button when 5 jobs are RUNNING", async () => {
-    mockJobs(Array.from({ length: 5 }, () => makeJob({ status: "RUNNING" })));
+  it("disables the Run scraper button when 1 job is RUNNING", async () => {
+    mockJobs([makeJob({ status: "RUNNING" })]);
     renderWithQuery(<JobList />);
-    // Wait for data to load (5/5 message appears) before checking button state
-    await screen.findByText(/5\/5 slots in use/i);
+    await screen.findByText(/1\/1 slots in use/i);
     const button = screen.getByRole("button", { name: /run scraper/i });
     expect(button).toBeDisabled();
   });
 
-  it("shows 5/5 slots in use message when all slots taken", async () => {
-    mockJobs(Array.from({ length: 5 }, () => makeJob({ status: "RUNNING" })));
+  it("shows 1/1 slots in use message when the slot is taken", async () => {
+    mockJobs([makeJob({ status: "RUNNING" })]);
     renderWithQuery(<JobList />);
-    expect(await screen.findByText(/5\/5 slots in use/i)).toBeInTheDocument();
+    expect(await screen.findByText(/1\/1 slots in use/i)).toBeInTheDocument();
   });
 
-  it("does not show slots message when fewer than 5 running", async () => {
-    mockJobs([makeJob({ status: "RUNNING" })]);
+  it("does not show slots message when no jobs are running", async () => {
+    mockJobs([makeJob({ status: "QUEUED" })]);
     renderWithQuery(<JobList />);
     await screen.findByRole("button", { name: /run scraper/i });
     expect(screen.queryByText(/slots in use/i)).not.toBeInTheDocument();

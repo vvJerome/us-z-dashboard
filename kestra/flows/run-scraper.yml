@@ -15,7 +15,7 @@ inputs:
     default: '{"enable_proxy": false, "skip_duplicates": true}'
 
 concurrency:
-  limit: 5
+  limit: 1
   behavior: QUEUE
 
 tasks:
