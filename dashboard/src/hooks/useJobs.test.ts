@@ -1,16 +1,16 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createElement } from "react";
-import { useJobs } from "./useJobs";
+import { act, createElement } from "react";
+import { useJobs, useCreateJob, useCancelJob } from "./useJobs";
 
 vi.mock("../api/jobs", () => ({
   fetchJobs: vi.fn().mockResolvedValue({ jobs: [], total: 0 }),
-  cancelJob: vi.fn(),
-  createJob: vi.fn(),
+  cancelJob: vi.fn().mockResolvedValue(undefined),
+  createJob: vi.fn().mockResolvedValue({ id: "new-job", status: "QUEUED" }),
 }));
 
-import { fetchJobs } from "../api/jobs";
+import { cancelJob, createJob, fetchJobs } from "../api/jobs";
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
@@ -54,5 +54,36 @@ describe("useJobs", () => {
     vi.mocked(fetchJobs).mockImplementation(() => new Promise(() => {}));
     const { result } = renderHook(() => useJobs(), { wrapper });
     expect(result.current.isLoading).toBe(true);
+  });
+});
+
+describe("useCreateJob", () => {
+  it("calls createJob with file and config on mutate", async () => {
+    const { result } = renderHook(() => useCreateJob(), { wrapper });
+    const file = new File(["data"], "test.jsonl");
+    const config = { enable_proxy: false, skip_duplicates: true };
+
+    await act(async () => {
+      await result.current.mutateAsync({ file, config });
+    });
+
+    expect(vi.mocked(createJob)).toHaveBeenCalledWith(file, config);
+  });
+
+  it("is in idle state before mutation fires", () => {
+    const { result } = renderHook(() => useCreateJob(), { wrapper });
+    expect(result.current.isPending).toBe(false);
+  });
+});
+
+describe("useCancelJob", () => {
+  it("calls cancelJob with the job id on mutate", async () => {
+    const { result } = renderHook(() => useCancelJob(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync("job-abc");
+    });
+
+    expect(vi.mocked(cancelJob)).toHaveBeenCalledWith("job-abc");
   });
 });

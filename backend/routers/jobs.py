@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -201,8 +202,6 @@ async def _sync_status(db: AsyncSession, job: Job, kestra: KestraClient) -> None
         new_status = await kestra.get_status(job.kestra_execution_id)
     except Exception as exc:
         # Non-fatal — Kestra may be temporarily unreachable; job status stays stale.
-        import logging
-
         logging.getLogger(__name__).warning(
             "Kestra status fetch failed for %s: %s", job.id, exc
         )

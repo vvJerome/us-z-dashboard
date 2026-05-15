@@ -22,10 +22,6 @@ export async function fetchJobs(): Promise<JobListResponse> {
   return request<JobListResponse>(BASE);
 }
 
-export async function fetchJob(id: string): Promise<Job> {
-  return request<Job>(`${BASE}/${id}`);
-}
-
 export async function fetchJobLogs(id: string): Promise<JobLogsResponse> {
   return request<JobLogsResponse>(`${BASE}/${id}/logs`);
 }

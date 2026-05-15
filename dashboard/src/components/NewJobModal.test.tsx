@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -84,5 +84,17 @@ describe("NewJobModal — file validation", () => {
     renderModal(onClose);
     await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("submits the form and closes modal on success", async () => {
+    const onClose = vi.fn();
+    renderModal(onClose);
+    const input = document.querySelector('input[type="file"]')!;
+    await userEvent.upload(
+      input as HTMLElement,
+      makeFile("records.jsonl", 1024),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /run scraper/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 });

@@ -22,7 +22,7 @@ if echo "$COMMAND" | grep -qE 'rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r
 fi
 
 # Block force push to main or master
-if echo "$COMMAND" | grep -qE 'git\s+push\s+.*(-f\b|--force\b)'; then
+if echo "$COMMAND" | grep -qE 'git\s+push\s+.*(-f\b|--force\b|--force-with-lease\b)'; then
   if echo "$COMMAND" | grep -qE '\b(main|master)\b'; then
     block "Force push to main/master is not allowed. See git-workflow.md."
   fi

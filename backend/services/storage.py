@@ -14,7 +14,7 @@ class StorageService:
     def output_path(self, job_id: uuid.UUID) -> Path:
         return self._data_dir / "outputs" / str(job_id) / "result.csv"
 
-    def log_path(self, job_id: uuid.UUID) -> Path:
+    def _log_path(self, job_id: uuid.UUID) -> Path:
         return self._data_dir / "logs" / str(job_id) / "run.log"
 
     def input_file_key(self, job_id: uuid.UUID, filename: str) -> str:
@@ -32,7 +32,7 @@ class StorageService:
 
     def read_log_tail(self, job_id: uuid.UUID, lines: int = 200) -> list[str]:
         """Return the last N lines of the job's run.log."""
-        path = self.log_path(job_id)
+        path = self._log_path(job_id)
         if not path.exists():
             return []
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -42,6 +42,3 @@ class StorageService:
     def output_exists(self, job_id: uuid.UUID) -> bool:
         return self.output_path(job_id).exists()
 
-    def output_size(self, job_id: uuid.UUID) -> int:
-        path = self.output_path(job_id)
-        return path.stat().st_size if path.exists() else 0

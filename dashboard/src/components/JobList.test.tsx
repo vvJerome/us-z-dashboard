@@ -69,6 +69,18 @@ describe("JobList", () => {
     expect(screen.queryByText(/slots in use/i)).not.toBeInTheDocument();
   });
 
+  it("shows loading state before data arrives", () => {
+    vi.mocked(fetchJobs).mockImplementation(() => new Promise(() => {}));
+    renderWithQuery(<JobList />);
+    expect(screen.getByText(/loading jobs/i)).toBeInTheDocument();
+  });
+
+  it("shows error state when fetch fails", async () => {
+    vi.mocked(fetchJobs).mockRejectedValue(new Error("network error"));
+    renderWithQuery(<JobList />);
+    expect(await screen.findByText(/failed to load jobs/i)).toBeInTheDocument();
+  });
+
   it("renders a row for each job returned", async () => {
     mockJobs([
       makeJob({ input_filename: "file-a.jsonl" }),

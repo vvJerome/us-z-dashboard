@@ -173,6 +173,67 @@ async def test_download_not_completed(
     assert response.status_code == 409
 
 
+# ── GET /jobs/{id}/file ──────────────────────────────────────────────────────
+
+
+async def test_download_file_not_completed(
+    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+) -> None:
+    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-file1"})
+    create_resp = await client.post(
+        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
+    )
+    job_id = create_resp.json()["id"]
+
+    response = await client.get(f"/jobs/{job_id}/file")
+    assert response.status_code == 409
+
+
+async def test_download_file_streams_csv(
+    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes, tmp_path
+) -> None:
+    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-file2"})
+    create_resp = await client.post(
+        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
+    )
+    job_id = create_resp.json()["id"]
+
+    # Simulate pipeline writing output and Kestra completing the job
+    out = tmp_path / "outputs" / job_id / "result.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("email,domain\nfoo@bar.com,bar.com\n")
+
+    httpx_mock.add_response(
+        url=f"http://kestra-mock:8080/api/v1/executions/exec-file2",
+        json={"state": {"current": "SUCCESS"}},
+    )
+    await client.get(f"/jobs/{job_id}")  # sync status → COMPLETED
+
+    response = await client.get(f"/jobs/{job_id}/file")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "foo@bar.com" in response.text
+
+
+async def test_download_file_missing_output(
+    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+) -> None:
+    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-file3"})
+    create_resp = await client.post(
+        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
+    )
+    job_id = create_resp.json()["id"]
+
+    httpx_mock.add_response(
+        url=f"http://kestra-mock:8080/api/v1/executions/exec-file3",
+        json={"state": {"current": "SUCCESS"}},
+    )
+    await client.get(f"/jobs/{job_id}")  # sync status → COMPLETED, but no file written
+
+    response = await client.get(f"/jobs/{job_id}/file")
+    assert response.status_code == 404
+
+
 # ── DELETE /jobs/{id} ─────────────────────────────────────────────────────────
 
 
@@ -201,3 +262,27 @@ async def test_cancel_queued_job(
 async def test_cancel_nonexistent_job(client: AsyncClient) -> None:
     response = await client.delete(f"/jobs/{uuid.uuid4()}")
     assert response.status_code == 404
+
+
+async def test_cancel_completed_job_rejected(
+    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes, tmp_path
+) -> None:
+    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-cancel2"})
+    create_resp = await client.post(
+        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
+    )
+    job_id = create_resp.json()["id"]
+
+    out = tmp_path / "outputs" / job_id / "result.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("done\n")
+
+    httpx_mock.add_response(
+        url=f"http://kestra-mock:8080/api/v1/executions/exec-cancel2",
+        json={"state": {"current": "SUCCESS"}},
+    )
+    await client.get(f"/jobs/{job_id}")  # sync → COMPLETED
+
+    response = await client.delete(f"/jobs/{job_id}")
+    assert response.status_code == 409
+    assert "Cannot cancel" in response.json()["detail"]

@@ -79,7 +79,7 @@ def test_read_log_tail_trims_to_limit(
     assert result[-1] == "line 299"
 
 
-# ── output_exists / output_size ───────────────────────────────────────────────
+# ── output_exists ─────────────────────────────────────────────────────────────
 
 
 def test_output_exists_false_when_missing(
@@ -96,13 +96,6 @@ def test_output_exists_true_after_write(
     out.write_text("email,domain\nfoo@bar.com,bar.com\n")
 
     assert storage.output_exists(job_id) is True
-    assert storage.output_size(job_id) > 0
-
-
-def test_output_size_zero_when_missing(
-    storage: StorageService, job_id: uuid.UUID
-) -> None:
-    assert storage.output_size(job_id) == 0
 
 
 # ── file_key helpers ──────────────────────────────────────────────────────────

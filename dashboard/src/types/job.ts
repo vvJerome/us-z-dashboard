@@ -35,7 +35,3 @@ export interface JobConfig {
   enable_proxy: boolean;
   skip_duplicates: boolean;
 }
-
-export interface ApiError {
-  detail: string;
-}
