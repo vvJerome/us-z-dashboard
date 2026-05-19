@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useJobs } from "../hooks/useJobs";
+import { useVps } from "../hooks/useVps";
 import { JobRow } from "./JobRow";
 import { NewJobModal } from "./NewJobModal";
 
@@ -7,9 +8,14 @@ const MAX_CONCURRENT = 1;
 
 export function JobList() {
   const { data, isLoading, isError } = useJobs();
+  const { data: vpsList } = useVps();
   const [showModal, setShowModal] = useState(false);
 
   const jobs = data?.jobs ?? [];
+  const vpsMap = useMemo(
+    () => new Map((vpsList ?? []).map((v) => [v.id, v.name])),
+    [vpsList],
+  );
   const runningCount = jobs.filter((j) => j.status === "RUNNING").length;
   const slotsExhausted = runningCount >= MAX_CONCURRENT;
 
@@ -47,7 +53,11 @@ export function JobList() {
 
       <div className="flex flex-col gap-3">
         {jobs.map((job) => (
-          <JobRow key={job.id} job={job} />
+          <JobRow
+            key={job.id}
+            job={job}
+            vpsName={job.vps_id ? vpsMap.get(job.vps_id) : undefined}
+          />
         ))}
       </div>
 

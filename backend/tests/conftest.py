@@ -11,9 +11,8 @@ from sqlalchemy.pool import NullPool
 
 from backend.database import Base, get_db
 from backend.main import app
-from backend.models import User
-from backend.routers.jobs import _get_kestra, _get_storage
-from backend.services.kestra import KestraClient
+from backend.models import User, VpsInstance
+from backend.routers.jobs import _get_storage
 from backend.services.storage import StorageService
 
 TEST_DB_URL = os.environ.get(
@@ -23,6 +22,9 @@ TEST_DB_URL = os.environ.get(
 
 # Matches the placeholder in routers/jobs.py
 PLACEHOLDER_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+# Used by tests that mock Kestra HTTP calls
+TEST_VPS_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -40,7 +42,6 @@ async def engine():
 async def db(engine) -> AsyncSession:
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as session:
-        # Ensure placeholder user exists for FK constraints
         from sqlalchemy import select
 
         result = await session.execute(
@@ -55,6 +56,23 @@ async def db(engine) -> AsyncSession:
                 )
             )
             await session.commit()
+
+        # Seed the local VPS that jobs will default to
+        result = await session.execute(
+            select(VpsInstance).where(VpsInstance.id == TEST_VPS_ID)
+        )
+        if result.scalar_one_or_none() is None:
+            session.add(
+                VpsInstance(
+                    id=TEST_VPS_ID,
+                    name="Test Local VPS",
+                    kestra_url="http://kestra-mock:8080",
+                    kestra_webhook_key="test-key",
+                    is_local=True,
+                )
+            )
+            await session.commit()
+
         yield session
 
 
@@ -71,10 +89,8 @@ async def clean_jobs(db: AsyncSession) -> None:
 @pytest_asyncio.fixture
 async def client(db: AsyncSession, tmp_path):
     storage = StorageService(tmp_path)
-    kestra = KestraClient("http://kestra-mock:8080", "test-key")
 
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[_get_kestra] = lambda: kestra
     app.dependency_overrides[_get_storage] = lambda: storage
 
     async with AsyncClient(

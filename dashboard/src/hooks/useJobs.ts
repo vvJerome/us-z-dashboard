@@ -15,8 +15,15 @@ export function useJobs() {
 export function useCreateJob() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ file, config }: { file: File; config: JobConfig }) =>
-      createJob(file, config),
+    mutationFn: ({
+      file,
+      config,
+      vpsId,
+    }: {
+      file: File;
+      config: JobConfig;
+      vpsId: string | null;
+    }) => createJob(file, config, vpsId),
     onSuccess: () => client.invalidateQueries({ queryKey: JOBS_KEY }),
   });
 }

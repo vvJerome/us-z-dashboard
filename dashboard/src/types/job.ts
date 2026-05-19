@@ -16,6 +16,7 @@ export interface Job {
   finished_at: string | null;
   error_message: string | null;
   output_file_key: string | null;
+  vps_id: string | null;
 }
 
 export interface JobListResponse {

@@ -32,11 +32,16 @@ export async function fetchJobDownload(
   return request<JobDownloadResponse>(`${BASE}/${id}/download`);
 }
 
-export async function createJob(file: File, config: JobConfig): Promise<Job> {
+export async function createJob(
+  file: File,
+  config: JobConfig,
+  vpsId: string | null,
+): Promise<Job> {
   const params = new URLSearchParams({
     enable_proxy: String(config.enable_proxy),
     skip_duplicates: String(config.skip_duplicates),
   });
+  if (vpsId) params.set("vps_id", vpsId);
   const body = new FormData();
   body.append("file", file);
   return request<Job>(`${BASE}?${params}`, { method: "POST", body });
