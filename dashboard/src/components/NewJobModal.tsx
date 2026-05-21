@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCreateJob } from "../hooks/useJobs";
+import { useVps } from "../hooks/useVps";
 import type { JobConfig } from "../types/job";
 
 interface NewJobModalProps {
@@ -22,7 +23,16 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
     enable_proxy: false,
     skip_duplicates: true,
   });
+  const [vpsId, setVpsId] = useState<string | null>(null);
   const create = useCreateJob();
+  const { data: vpsList } = useVps();
+
+  useEffect(() => {
+    if (vpsList && vpsList.length > 0 && vpsId === null) {
+      const local = vpsList.find((v) => v.is_local) ?? vpsList[0];
+      setVpsId(local.id);
+    }
+  }, [vpsList, vpsId]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = e.target.files?.[0] ?? null;
@@ -31,7 +41,6 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
       setFile(null);
       return;
     }
-
     if (!ALLOWED_EXT.has(getExtension(picked.name))) {
       setFileError("Only .jsonl and .csv files are accepted.");
       setFile(null);
@@ -52,7 +61,7 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
-    await create.mutateAsync({ file, config });
+    await create.mutateAsync({ file, config, vpsId });
     onClose();
   }
 
@@ -94,6 +103,26 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
               </p>
             )}
           </div>
+
+          {vpsList && vpsList.length > 0 && (
+            <div>
+              <label className="mb-1 block text-sm text-gray-400">
+                Run on VPS
+              </label>
+              <select
+                value={vpsId ?? ""}
+                onChange={(e) => setVpsId(e.target.value || null)}
+                className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
+              >
+                {vpsList.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                    {v.is_local ? " (local)" : ` — ${v.ssh_host}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <label className="text-sm text-gray-400">Options</label>

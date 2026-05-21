@@ -39,6 +39,7 @@ describe("useJobs", () => {
           finished_at: null,
           error_message: null,
           output_file_key: null,
+          vps_id: null,
         },
       ],
       total: 1,
@@ -64,10 +65,10 @@ describe("useCreateJob", () => {
     const config = { enable_proxy: false, skip_duplicates: true };
 
     await act(async () => {
-      await result.current.mutateAsync({ file, config });
+      await result.current.mutateAsync({ file, config, vpsId: null });
     });
 
-    expect(vi.mocked(createJob)).toHaveBeenCalledWith(file, config);
+    expect(vi.mocked(createJob)).toHaveBeenCalledWith(file, config, null);
   });
 
   it("is in idle state before mutation fires", () => {

@@ -23,6 +23,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     finished_at: null,
     error_message: null,
     output_file_key: null,
+    vps_id: null,
     ...overrides,
   };
 }

@@ -28,6 +28,7 @@ class JobResponse(BaseModel):
     finished_at: datetime | None
     error_message: str | None
     output_file_key: str | None
+    vps_id: uuid.UUID | None
 
 
 class JobListResponse(BaseModel):

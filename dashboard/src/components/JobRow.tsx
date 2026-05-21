@@ -7,6 +7,7 @@ import { StatusBadge } from "./StatusBadge";
 
 interface JobRowProps {
   job: Job;
+  vpsName?: string;
 }
 
 function formatDate(iso: string | null): string {
@@ -14,7 +15,7 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-export function JobRow({ job }: JobRowProps) {
+export function JobRow({ job, vpsName }: JobRowProps) {
   const [expanded, setExpanded] = useState(false);
   const cancel = useCancelJob();
 
@@ -32,6 +33,11 @@ export function JobRow({ job }: JobRowProps) {
             <span className="truncate text-sm font-medium text-gray-200">
               {job.input_filename}
             </span>
+            {vpsName && (
+              <span className="shrink-0 rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-400">
+                {vpsName}
+              </span>
+            )}
           </div>
           <div className="mt-1 flex gap-4 text-xs text-gray-500">
             <span>Created {formatDate(job.created_at)}</span>

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -10,7 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Job
+from ..models import Job, VpsInstance
 from ..schemas.jobs import (
     JobConfig,
     JobDownloadResponse,
@@ -19,6 +20,7 @@ from ..schemas.jobs import (
     JobResponse,
 )
 from ..services.kestra import KestraClient
+from ..services.ssh import SshTransfer
 from ..services.storage import StorageService
 from ..settings import get_settings
 
@@ -31,11 +33,6 @@ _ALLOWED_EXTENSIONS = {".jsonl", ".csv"}
 _PLACEHOLDER_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
-def _get_kestra() -> KestraClient:
-    s = get_settings()
-    return KestraClient(s.kestra_base_url, s.kestra_webhook_key)
-
-
 def _get_storage() -> StorageService:
     return StorageService(get_settings().data_dir)
 
@@ -45,8 +42,8 @@ async def create_job(
     file: UploadFile,
     enable_proxy: bool = False,
     skip_duplicates: bool = True,
+    vps_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
-    kestra: KestraClient = Depends(_get_kestra),
     storage: StorageService = Depends(_get_storage),
 ) -> Job:
     # TODO: add auth
@@ -56,6 +53,7 @@ async def create_job(
     if len(data) > _MAX_UPLOAD_BYTES:
         raise HTTPException(413, "File exceeds 100 MB limit")
 
+    vps = await _resolve_vps(db, vps_id)
     job_id = uuid.uuid4()
     config = JobConfig(enable_proxy=enable_proxy, skip_duplicates=skip_duplicates)
 
@@ -64,6 +62,7 @@ async def create_job(
     job = Job(
         id=job_id,
         user_id=_PLACEHOLDER_USER_ID,
+        vps_id=vps.id,
         status="QUEUED",
         input_filename=file.filename or "input.jsonl",
         input_file_key=file_key,
@@ -75,6 +74,19 @@ async def create_job(
     db.add(job)
     await db.flush()
 
+    if not vps.is_local:
+        local_input = storage.input_path(job_id, file.filename or "input.jsonl")
+        remote_input = f"{vps.data_dir}/{file_key}"
+        try:
+            await SshTransfer.push_file(vps, local_input, remote_input)
+        except RuntimeError as exc:
+            job.status = "FAILED"
+            job.error_message = str(exc)
+            await db.commit()
+            await db.refresh(job)
+            return job  # type: ignore[return-value]
+
+    kestra = KestraClient(vps.kestra_url, vps.kestra_webhook_key)
     try:
         execution_id = await kestra.trigger(job_id, file_key, config)
         job.kestra_execution_id = execution_id
@@ -92,6 +104,17 @@ async def list_jobs(db: AsyncSession = Depends(get_db)) -> JobListResponse:
     # TODO: add auth — filter by current user
     result = await db.execute(select(Job).order_by(Job.created_at.desc()))
     jobs = result.scalars().all()
+    active = [j for j in jobs if j.status in ("QUEUED", "RUNNING") and j.kestra_execution_id]
+    if active:
+        vps_clients: dict[str, KestraClient] = {}
+        for job in active:
+            vid = str(job.vps_id) if job.vps_id else ""
+            if vid not in vps_clients:
+                vps = await _load_vps(db, job)
+                if vps:
+                    vps_clients[vid] = KestraClient(vps.kestra_url, vps.kestra_webhook_key)
+            if vid in vps_clients:
+                await _sync_status(db, job, vps_clients[vid])
     return JobListResponse(jobs=list(jobs), total=len(jobs))  # type: ignore[arg-type]
 
 
@@ -99,11 +122,13 @@ async def list_jobs(db: AsyncSession = Depends(get_db)) -> JobListResponse:
 async def get_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    kestra: KestraClient = Depends(_get_kestra),
 ) -> Job:
     # TODO: add auth
     job = await _fetch_job(db, job_id)
-    await _sync_status(db, job, kestra)
+    vps = await _load_vps(db, job)
+    if vps:
+        kestra = KestraClient(vps.kestra_url, vps.kestra_webhook_key)
+        await _sync_status(db, job, kestra)
     return job  # type: ignore[return-value]
 
 
@@ -129,6 +154,8 @@ async def get_download_url(
     job = await _fetch_job(db, job_id)
     if job.status != "COMPLETED":
         raise HTTPException(409, "Job is not yet completed")
+    vps = await _load_vps(db, job)
+    await _ensure_output_local(job, vps, storage)
     if not storage.output_exists(job_id):
         raise HTTPException(404, "Output file not found")
     return JobDownloadResponse(url=f"/api/jobs/{job_id}/file")
@@ -144,6 +171,8 @@ async def download_file(
     job = await _fetch_job(db, job_id)
     if job.status != "COMPLETED":
         raise HTTPException(409, "Job is not yet completed")
+    vps = await _load_vps(db, job)
+    await _ensure_output_local(job, vps, storage)
     path = storage.output_path(job_id)
     if not path.exists():
         raise HTTPException(404, "Output file not found")
@@ -154,14 +183,16 @@ async def download_file(
 async def cancel_job(
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    kestra: KestraClient = Depends(_get_kestra),
 ) -> None:
     # TODO: add auth
     job = await _fetch_job(db, job_id)
     if job.status not in ("QUEUED", "RUNNING"):
         raise HTTPException(409, f"Cannot cancel a job with status {job.status}")
     if job.kestra_execution_id:
-        await kestra.cancel(job.kestra_execution_id)
+        vps = await _load_vps(db, job)
+        if vps:
+            kestra = KestraClient(vps.kestra_url, vps.kestra_webhook_key)
+            await kestra.cancel(job.kestra_execution_id)
     await db.execute(
         update(Job)
         .where(Job.id == job_id)
@@ -191,6 +222,55 @@ async def _fetch_job(db: AsyncSession, job_id: uuid.UUID) -> Job:
     return job
 
 
+async def _load_vps(db: AsyncSession, job: Job) -> VpsInstance | None:
+    if job.vps_id is None:
+        return None
+    result = await db.execute(
+        select(VpsInstance).where(VpsInstance.id == job.vps_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _resolve_vps(db: AsyncSession, vps_id: uuid.UUID | None) -> VpsInstance:
+    """Return the requested VPS, or the first active local VPS as default."""
+    if vps_id is not None:
+        result = await db.execute(
+            select(VpsInstance).where(
+                VpsInstance.id == vps_id, VpsInstance.is_active == True  # noqa: E712
+            )
+        )
+        vps = result.scalar_one_or_none()
+        if vps is None:
+            raise HTTPException(404, f"VPS {vps_id} not found or inactive")
+        return vps
+
+    result = await db.execute(
+        select(VpsInstance)
+        .where(VpsInstance.is_active == True)  # noqa: E712
+        .order_by(VpsInstance.is_local.desc(), VpsInstance.created_at)
+        .limit(1)
+    )
+    vps = result.scalar_one_or_none()
+    if vps is None:
+        raise HTTPException(503, "No active VPS configured")
+    return vps
+
+
+async def _ensure_output_local(
+    job: Job, vps: VpsInstance | None, storage: StorageService
+) -> None:
+    """SSH-pull the output CSV from a remote VPS if it's not already local."""
+    if vps is None or vps.is_local or storage.output_exists(job.id):
+        return
+    remote_path = f"{vps.data_dir}/outputs/{job.id}/result.csv"
+    local_path = storage.output_path(job.id)
+    try:
+        await SshTransfer.pull_file(vps, remote_path, local_path)
+    except RuntimeError as exc:
+        logging.getLogger(__name__).error("Output pull failed for %s: %s", job.id, exc)
+        raise HTTPException(502, "Could not retrieve output from remote VPS") from exc
+
+
 async def _sync_status(db: AsyncSession, job: Job, kestra: KestraClient) -> None:
     """Pull current state from Kestra and update the DB if it changed."""
     if (
@@ -201,7 +281,6 @@ async def _sync_status(db: AsyncSession, job: Job, kestra: KestraClient) -> None
     try:
         new_status = await kestra.get_status(job.kestra_execution_id)
     except Exception as exc:
-        # Non-fatal — Kestra may be temporarily unreachable; job status stays stale.
         logging.getLogger(__name__).warning(
             "Kestra status fetch failed for %s: %s", job.id, exc
         )
