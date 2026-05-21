@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await engine.dispose()
 
 
-app = FastAPI(title="us-z backend", lifespan=lifespan)
+app = FastAPI(title="us-z backend", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 app.include_router(jobs.router, prefix="/jobs")
 

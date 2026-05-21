@@ -57,6 +57,7 @@ services:
     volumes:
       - kestra_storage:/app/storage
       - ./kestra/flows:/app/flows
+      - ./kestra/application.yml:/app/confs/application.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - data_volume:/data
       - ${RACKNERD_SSH_KEY_PATH:-/root/.ssh/racknerd_egress}:/root/.ssh/racknerd_egress:ro
@@ -64,16 +65,13 @@ services:
       - "127.0.0.1:8080:8080"
     environment:
       JAVA_OPTS: "-Xms256m -Xmx512m"
+      MICRONAUT_CONFIG_FILES: /app/confs/application.yml
       DATASOURCES_POSTGRES_URL: "jdbc:postgresql://postgres:5432/kestra"
       DATASOURCES_POSTGRES_DRIVER_CLASS_NAME: "org.postgresql.Driver"
       DATASOURCES_POSTGRES_USERNAME: ${POSTGRES_USER:-scraper}
       DATASOURCES_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       KESTRA_REPOSITORY_TYPE: postgres
       KESTRA_QUEUE_TYPE: postgres
-      KESTRA_STORAGE_TYPE: local
-      KESTRA_STORAGE_LOCAL_BASE_PATH: /app/storage
-      KESTRA_FLOWS_BASE_PATH: /app/flows
-      KESTRA_SERVER_BASIC_AUTH_ENABLED: "false"
       GITHUB_ORG: ${GITHUB_ORG}
       IMAGE_TAG: ${IMAGE_TAG:-latest}
       KESTRA_WEBHOOK_KEY: ${KESTRA_WEBHOOK_KEY}

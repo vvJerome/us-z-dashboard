@@ -1,8 +1,6 @@
 # us-z-dashboard
 
-Universal scraper platform: React dashboard + FastAPI backend + PostgreSQL + Kestra orchestrator + Docker pipeline containers on a single Hetzner VPS.
-
-Full architecture: [docs/context.md](docs/context.md)
+Universal scraper platform: React dashboard + FastAPI backend + PostgreSQL + Kestra orchestrator + Docker pipeline containers on a single Racknerd KVM-2GB VPS.
 
 ---
 
@@ -12,19 +10,39 @@ Full architecture: [docs/context.md](docs/context.md)
 |-------|----------|-------|
 | React SPA | `dashboard/` | FrontendDev |
 | FastAPI backend | `backend/` | BackendDev |
-| Scraper pipeline | `pipeline/` | PipelineDev |
+| Scraper pipeline | `us-z-3/` (separate repo) | PipelineDev |
 | Infra (Compose, Kestra, nginx, CI) | root config files | InfraSetup |
 
 ## Key decisions
 
 See `.claude/directions/` for full ADRs:
 
-- **ADR-001** — Kestra for job orchestration (concurrency limit 5, retry, cancel API)
+- **ADR-001** — Kestra for job orchestration (concurrency limit **1** on KVM-2GB, retry, cancel API)
 - **ADR-002** — 10-second HTTP polling, no WebSocket
-- **ADR-003** — Single Hetzner VPS + Docker Compose, no Kubernetes
+- **ADR-003** — Single VPS + Docker Compose, no Kubernetes
 - **ADR-004** — Isolated Docker container per job
 - **ADR-005** — GitHub Actions + GHCR for pipeline CI/CD
 - **ADR-006** — Local filesystem storage first (`/data` volume), S3 migration deferred
+
+## Critical runtime notes
+
+**Alembic migrations** — must run from `/srv/backend` with `PYTHONPATH=/srv`:
+```bash
+docker compose exec backend sh -c "cd /srv/backend && PYTHONPATH=/srv alembic upgrade head"
+```
+
+**First user insert** — backend uses a fixed placeholder UUID until auth is implemented:
+```sql
+INSERT INTO users (id, email, password_hash, created_at)
+VALUES ('00000000-0000-0000-0000-000000000001', 'your@email.com', 'placeholder-no-auth-yet', now());
+```
+
+**Kestra flow upload** — use the API directly (not the UI):
+```bash
+curl -X POST http://localhost:8080/api/v1/flows/import -F fileUpload=@kestra/flows/run-scraper.yml
+```
+
+See `DEPLOYMENT.md` for all known deployment gotchas.
 
 ## Deferred (do not implement yet)
 

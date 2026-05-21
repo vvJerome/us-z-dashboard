@@ -47,3 +47,6 @@ Thumbs.db
 *.tmp
 *.swp
 *~
+
+# Generated / internal docs
+docs/

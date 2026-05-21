@@ -46,7 +46,8 @@ else
 fi
 
 # ── Docker data volume ────────────────────────────────────────────────────────
-if docker volume inspect data_volume &>/dev/null; then
+# Volume name includes the compose project prefix (e.g. us-z-dashboard_data_volume)
+if docker volume ls --format '{{.Name}}' | grep -q 'data_volume'; then
   check "data_volume exists" "ok"
 else
   check "data_volume exists" "missing — run: docker compose up -d"

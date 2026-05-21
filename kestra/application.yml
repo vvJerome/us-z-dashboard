@@ -1,0 +1,16 @@
+kestra:
+  storage:
+    type: local
+    local:
+      basePath: /app/storage
+  repository:
+    type: postgres
+  queue:
+    type: postgres
+  server:
+    basic-auth:
+      enabled: false
+  flows:
+    base-path: /app/flows
+  variables:
+    env-vars-prefix: ""
