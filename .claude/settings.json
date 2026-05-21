@@ -22,6 +22,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/post-tool-run-tests.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-tool-no-hardcoded-secrets.sh"
           }
         ]
       },
