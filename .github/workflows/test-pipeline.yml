@@ -3,7 +3,7 @@ name: Test pipeline end-to-end
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, chore/pre-deploy-cleanup]
     paths:
       - "kestra/flows/**"
       - ".github/workflows/test-pipeline.yml"
