@@ -104,6 +104,17 @@ async def list_jobs(db: AsyncSession = Depends(get_db)) -> JobListResponse:
     # TODO: add auth — filter by current user
     result = await db.execute(select(Job).order_by(Job.created_at.desc()))
     jobs = result.scalars().all()
+    active = [j for j in jobs if j.status in ("QUEUED", "RUNNING") and j.kestra_execution_id]
+    if active:
+        vps_clients: dict[str, KestraClient] = {}
+        for job in active:
+            vid = str(job.vps_id) if job.vps_id else ""
+            if vid not in vps_clients:
+                vps = await _load_vps(db, job)
+                if vps:
+                    vps_clients[vid] = KestraClient(vps.kestra_url, vps.kestra_webhook_key)
+            if vid in vps_clients:
+                await _sync_status(db, job, vps_clients[vid])
     return JobListResponse(jobs=list(jobs), total=len(jobs))  # type: ignore[arg-type]
 
 

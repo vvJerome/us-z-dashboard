@@ -31,23 +31,17 @@ class KestraClient:
     async def trigger(
         self, job_id: uuid.UUID, input_file_key: str, config: "JobConfig"
     ) -> str:
-        """Trigger the run-scraper flow via webhook. Returns Kestra execution ID."""
-        url = f"{self._base_url}/api/v1/executions/webhook/prod/run-scraper/{self._webhook_key}"
-        payload = {
-            "job_id": str(job_id),
-            "input_file_key": input_file_key,
-            "config": json.dumps(
-                {
-                    "enable_proxy": config.enable_proxy,
-                    "skip_duplicates": config.skip_duplicates,
-                }
-            ),
+        """Trigger the run-scraper flow via executions API. Returns Kestra execution ID."""
+        url = f"{self._base_url}/api/v1/executions/prod/run-scraper"
+        files = {
+            "job_id": (None, str(job_id)),
+            "input_file_key": (None, input_file_key),
+            "config": (None, json.dumps({"enable_proxy": config.enable_proxy, "skip_duplicates": config.skip_duplicates})),
         }
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, json=payload)
+            response = await client.post(url, files=files)
             response.raise_for_status()
-            data = response.json()
-            return data["id"]
+            return response.json()["id"]
 
     async def get_status(self, execution_id: str) -> str:
         """Fetch current execution state and map to our status enum."""
