@@ -226,7 +226,12 @@ function CostPanel({ data }: { data: MetricsResponse }) {
   return card(
     <div className="flex flex-col">
       {sectionTitle("Cost")}
-      <div className="text-3xl font-bold">${cost.spent_usd.toFixed(2)}</div>
+      <div className="text-3xl font-bold">
+        $
+        {cost.spent_usd < 0.01
+          ? cost.spent_usd.toFixed(4)
+          : cost.spent_usd.toFixed(2)}
+      </div>
       <div className="mt-1 text-xs text-slate-400">
         of {cost.ceiling_usd ? `$${cost.ceiling_usd.toFixed(2)}` : "—"}
       </div>
@@ -248,14 +253,19 @@ function CostPanel({ data }: { data: MetricsResponse }) {
           <div key={s.name} className="flex justify-between">
             <span className="capitalize text-slate-400">{s.name}</span>
             <span>
-              <span className="text-slate-200">${s.cost_usd.toFixed(2)}</span>
+              <span className="text-slate-200">
+                $
+                {s.cost_usd < 0.01
+                  ? s.cost_usd.toFixed(4)
+                  : s.cost_usd.toFixed(2)}
+              </span>
               <span className="text-slate-500"> ({fmt(s.calls)})</span>
             </span>
           </div>
         ))}
       </div>
       <div className="mt-auto pt-2 text-xs text-slate-400">
-        Projected: <b className="text-slate-200">{projected}</b>
+        Est. full run: <b className="text-slate-200">{projected}</b>
       </div>
     </div>,
     "col-span-12 md:col-span-3",

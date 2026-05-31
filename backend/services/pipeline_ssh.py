@@ -16,7 +16,7 @@ PENDING_STATES = ("DISCOVERED", "VALIDATING", "NEEDS_ZUHAL", "ZUHAL_VALIDATING")
 API_COSTS = {
     "serper_producer": 0.001,
     "serper_dispatcher": 0.001,
-    "zuhal": 0.006,
+    "zuhal": 0.0005,
 }
 
 _QUERIES: dict[str, str] = {
@@ -52,10 +52,11 @@ _QUERIES: dict[str, str] = {
         " SUM(CASE WHEN record_state='DISCOVERY_FAILED' THEN 1 ELSE 0 END) AS failed"
         " FROM records"
     ),
-    "cost": "SELECT estimated_cost_usd FROM stats ORDER BY rowid DESC LIMIT 1",
+    "cost": "SELECT SUM(estimated_cost_usd) AS estimated_cost_usd FROM stats",
     "cost_breakdown": (
-        "SELECT serper_producer_calls, serper_dispatcher_calls, zuhal_calls"
-        " FROM stats ORDER BY rowid DESC LIMIT 1"
+        "SELECT SUM(serper_producer_calls) AS serper_producer_calls,"
+        " SUM(serper_dispatcher_calls) AS serper_dispatcher_calls,"
+        " SUM(zuhal_calls) AS zuhal_calls FROM stats"
     ),
     "run_history": (
         "SELECT strftime('%Y-%m-%dT%H:00', updated_at) AS hour,"
