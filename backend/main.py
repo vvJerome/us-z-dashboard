@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from .database import AsyncSessionLocal, engine
 from .models import VpsInstance
-from .routers import jobs, vps
+from .routers import jobs, metrics, vps
 from .settings import get_settings
 
 
@@ -45,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title="us-z backend", lifespan=lifespan)
 
 app.include_router(jobs.router, prefix="/jobs")
+app.include_router(metrics.router, prefix="/jobs")
 app.include_router(vps.router, prefix="/vps")
 
 

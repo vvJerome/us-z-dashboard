@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useCancelJob } from "../hooks/useJobs";
 import type { Job } from "../types/job";
 import { DownloadButton } from "./DownloadButton";
@@ -18,6 +19,7 @@ function formatDate(iso: string | null): string {
 export function JobRow({ job, vpsName }: JobRowProps) {
   const [expanded, setExpanded] = useState(false);
   const cancel = useCancelJob();
+  const navigate = useNavigate();
 
   const canCancel = job.status === "QUEUED" || job.status === "RUNNING";
 
@@ -56,6 +58,21 @@ export function JobRow({ job, vpsName }: JobRowProps) {
         <div className="flex shrink-0 items-center gap-2">
           {job.status === "COMPLETED" && (
             <DownloadButton jobId={job.id} filename={job.input_filename} />
+          )}
+          {(job.status === "RUNNING" || job.status === "COMPLETED") && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/jobs/${job.id}/monitor`);
+              }}
+              className={`rounded border px-2 py-1 text-xs ${
+                job.status === "RUNNING"
+                  ? "border-sky-700 text-sky-400 hover:bg-sky-900"
+                  : "border-slate-700 text-slate-400 hover:bg-slate-800"
+              }`}
+            >
+              {job.status === "RUNNING" ? "Live" : "Metrics"}
+            </button>
           )}
           {canCancel && (
             <button
