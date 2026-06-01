@@ -11,6 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
+from ..services.metrics_cache import invalidate as _invalidate_metrics
 from ..models import Job, VpsInstance
 from ..schemas.jobs import (
     JobConfig,
@@ -295,6 +296,7 @@ async def _sync_status(db: AsyncSession, job: Job, kestra: KestraClient) -> None
         values["started_at"] = now
     if new_status in ("COMPLETED", "FAILED", "CANCELLED"):
         values["finished_at"] = now
+        _invalidate_metrics(str(job.id))
     if new_status == "COMPLETED" and job.output_file_key is None:
         values["output_file_key"] = f"outputs/{job.id}/result.csv"
 

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Dashboard } from "./pages/Dashboard";
+import { MonitorPage } from "./pages/MonitorPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,6 +15,7 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/jobs/:jobId/monitor" element={<MonitorPage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

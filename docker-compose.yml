@@ -105,6 +105,8 @@ services:
     volumes:
       - data_volume:/data
       - ${RACKNERD_SSH_KEY_PATH:-/root/.ssh/id_vps1}:/root/.ssh/id_vps1:ro
+      - ${VPS2_SSH_KEY_PATH:-/root/.ssh/id_vps2}:/root/.ssh/id_vps2:ro
+      - ${VPS3_SSH_KEY_PATH:-/root/.ssh/id_vps3}:/root/.ssh/id_vps3:ro
     ports:
       - "127.0.0.1:8000:8000"
     env_file: .env
