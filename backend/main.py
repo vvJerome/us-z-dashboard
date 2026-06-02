@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from .database import AsyncSessionLocal, engine
 from .models import VpsInstance
-from .routers import jobs, metrics, vps
+from .routers import jobs, metrics, vps, zerobounce
 from .settings import get_settings
 
 
@@ -47,6 +47,7 @@ app = FastAPI(title="us-z backend", lifespan=lifespan)
 app.include_router(jobs.router, prefix="/jobs")
 app.include_router(metrics.router, prefix="/jobs")
 app.include_router(vps.router, prefix="/vps")
+app.include_router(zerobounce.router)
 
 
 @app.exception_handler(Exception)
