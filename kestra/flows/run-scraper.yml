@@ -12,7 +12,7 @@ inputs:
   - id: config
     type: STRING
     description: 'JSON config toggles: {"enable_proxy": false, "skip_duplicates": true}'
-    default: '{"enable_proxy": false, "skip_duplicates": true}'
+    defaults: '{"enable_proxy": false, "skip_duplicates": true}'
   - id: serper_api_key
     type: STRING
     description: "Override Serper API key for this job (falls back to env var if empty)"
