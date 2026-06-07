@@ -13,6 +13,8 @@ JobStatus = Literal["QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED"]
 class JobConfig(BaseModel):
     enable_proxy: bool = False
     skip_duplicates: bool = True
+    serper_api_key: str | None = None
+    zuhal_api_key: str | None = None
 
 
 class JobResponse(BaseModel):

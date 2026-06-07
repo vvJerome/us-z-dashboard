@@ -13,6 +13,16 @@ inputs:
     type: STRING
     description: 'JSON config toggles: {"enable_proxy": false, "skip_duplicates": true}'
     default: '{"enable_proxy": false, "skip_duplicates": true}'
+  - id: serper_api_key
+    type: STRING
+    description: "Override Serper API key for this job (falls back to env var if empty)"
+    required: false
+    defaults: ""
+  - id: zuhal_api_key
+    type: STRING
+    description: "Override Zuhal API key for this job (falls back to env var if empty)"
+    required: false
+    defaults: ""
 
 concurrency:
   limit: 1
@@ -32,8 +42,8 @@ tasks:
       INPUT_FILE_KEY: "{{ inputs.input_file_key }}"
       CONFIG: "{{ inputs.config }}"
       DATA_DIR: "/data"
-      SERPER_API_KEY: "{{ envs.SERPER_API_KEY }}"
-      ZUHAL_API_KEY: "{{ envs.ZUHAL_API_KEY }}"
+      SERPER_API_KEY: "{{ inputs.serper_api_key ?: envs.SERPER_API_KEY }}"
+      ZUHAL_API_KEY: "{{ inputs.zuhal_api_key ?: envs.ZUHAL_API_KEY }}"
       RACKNERD_HOST: "{{ envs.RACKNERD_HOST }}"
       RACKNERD_SSH_USER: "{{ envs.RACKNERD_SSH_USER }}"
       RACKNERD_SSH_PORT: "{{ envs.RACKNERD_SSH_PORT }}"

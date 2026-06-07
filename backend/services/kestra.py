@@ -33,11 +33,18 @@ class KestraClient:
     ) -> str:
         """Trigger the run-scraper flow via executions API. Returns Kestra execution ID."""
         url = f"{self._base_url}/api/v1/executions/prod/run-scraper"
-        files = {
+        files: dict = {
             "job_id": (None, str(job_id)),
             "input_file_key": (None, input_file_key),
-            "config": (None, json.dumps({"enable_proxy": config.enable_proxy, "skip_duplicates": config.skip_duplicates})),
+            "config": (None, json.dumps({
+                "enable_proxy": config.enable_proxy,
+                "skip_duplicates": config.skip_duplicates,
+            })),
         }
+        if config.serper_api_key:
+            files["serper_api_key"] = (None, config.serper_api_key)
+        if config.zuhal_api_key:
+            files["zuhal_api_key"] = (None, config.zuhal_api_key)
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, files=files)
             response.raise_for_status()
