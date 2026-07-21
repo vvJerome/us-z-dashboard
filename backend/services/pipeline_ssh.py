@@ -9,6 +9,7 @@ from typing import Any
 import asyncssh
 
 from ..models import VpsInstance
+from .ssh_common import build_connect_kwargs
 
 TERMINAL_STATES = ("VALIDATED", "VALIDATION_FAILED", "COST_SKIPPED")
 PENDING_STATES = ("DISCOVERED", "VALIDATING", "NEEDS_ZUHAL", "ZUHAL_VALIDATING")
@@ -94,23 +95,15 @@ _QUERIES: dict[str, str] = {
 }
 
 
-def _build_connect_kwargs(vps: VpsInstance) -> dict[str, Any]:
-    return {
-        "host": vps.ssh_host,
-        "port": vps.ssh_port,
-        "username": vps.ssh_user,
-        "client_keys": [vps.ssh_key_path] if vps.ssh_key_path else [],
-        "known_hosts": None,
-    }
-
-
 def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
     t0 = time.monotonic()
 
     states_raw: list[dict] = results.get("state_counts") or []
     states = {r["record_state"]: r["n"] for r in states_raw}
     total = sum(states.values())
-    terminal = sum(states.get(s, 0) for s in TERMINAL_STATES) + states.get("DISCOVERY_FAILED", 0)
+    terminal = sum(states.get(s, 0) for s in TERMINAL_STATES) + states.get(
+        "DISCOVERY_FAILED", 0
+    )
     pending = sum(states.get(s, 0) for s in PENDING_STATES)
 
     rate_row = results.get("rate_15m") or [{"n": 0}]
@@ -134,19 +127,32 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
     cost_row = (results.get("cost") or [{}])[0] if results.get("cost") else {}
     spent = round(cost_row.get("estimated_cost_usd") or 0.0, 4)
 
-    cb_row = (results.get("cost_breakdown") or [{}])[0] if results.get("cost_breakdown") else {}
-    sp = (cb_row.get("serper_producer_calls") or 0)
-    sd = (cb_row.get("serper_dispatcher_calls") or 0)
-    zu = (cb_row.get("zuhal_calls") or 0)
+    cb_row = (
+        (results.get("cost_breakdown") or [{}])[0]
+        if results.get("cost_breakdown")
+        else {}
+    )
+    sp = cb_row.get("serper_producer_calls") or 0
+    sd = cb_row.get("serper_dispatcher_calls") or 0
+    zu = cb_row.get("zuhal_calls") or 0
     services = [
-        {"name": "serper", "calls": sp + sd,
-         "cost_usd": round((sp * API_COSTS["serper_producer"] + sd * API_COSTS["serper_dispatcher"]), 4)},
-        {"name": "zuhal", "calls": zu,
-         "cost_usd": round(zu * API_COSTS["zuhal"], 4)},
+        {
+            "name": "serper",
+            "calls": sp + sd,
+            "cost_usd": round(
+                (
+                    sp * API_COSTS["serper_producer"]
+                    + sd * API_COSTS["serper_dispatcher"]
+                ),
+                4,
+            ),
+        },
+        {"name": "zuhal", "calls": zu, "cost_usd": round(zu * API_COSTS["zuhal"], 4)},
     ]
 
-    errors = [dict(r) for r in (results.get("errors_racknerd") or [])] + \
-             [dict(r) for r in (results.get("errors_bbops") or [])]
+    errors = [dict(r) for r in (results.get("errors_racknerd") or [])] + [
+        dict(r) for r in (results.get("errors_bbops") or [])
+    ]
     errors.sort(key=lambda x: x.get("n", 0), reverse=True)
     for e in errors:
         if e.get("message") and len(e["message"]) > 140:
@@ -164,16 +170,21 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         "states": states,
         "totals": {"all": total, "terminal": terminal, "pending": pending},
         "rate": {"last_15min": last_15, "per_hour": per_hour, "eta_hours": eta_hours},
-        "throughput_60min": [{"minute": r["minute"], "count": r["count"]}
-                              for r in (results.get("throughput_60min") or [])],
+        "throughput_60min": [
+            {"minute": r["minute"], "count": r["count"]}
+            for r in (results.get("throughput_60min") or [])
+        ],
         "backends": {
             "racknerd": _backend(results.get("backend_racknerd")),
-            "bbops":    _backend(results.get("backend_bbops")),
-            "zuhal":    _backend(results.get("backend_zuhal")),
+            "bbops": _backend(results.get("backend_bbops")),
+            "zuhal": _backend(results.get("backend_zuhal")),
         },
         "discovery": {
-            "dns": dns, "serper": serper, "failed": failed,
-            "total_input": disc_total, "hit_rate_pct": hit_rate,
+            "dns": dns,
+            "serper": serper,
+            "failed": failed,
+            "total_input": disc_total,
+            "hit_rate_pct": hit_rate,
         },
         "cost": {"spent_usd": spent, "ceiling_usd": None, "pct": None},
         "cost_breakdown": {"services": services},
@@ -199,14 +210,18 @@ def _query_local(db_path: str) -> dict[str, Any]:
     return _assemble_snapshot(results)
 
 
-async def _run_query_ssh(conn: asyncssh.SSHClientConnection, db_path: str, sql: str) -> list[dict]:
+async def _run_query_ssh(
+    conn: asyncssh.SSHClientConnection, db_path: str, sql: str
+) -> list[dict]:
     escaped = sql.replace('"', '\\"')
     result = await conn.run(
         f'/usr/bin/sqlite3 -json "{db_path}" "{escaped}"',
         timeout=10,
     )
     if result.exit_status == 127:
-        raise RuntimeError("sqlite3 CLI not found on VPS — install with: apt-get install sqlite3")
+        raise RuntimeError(
+            "sqlite3 CLI not found on VPS — install with: apt-get install sqlite3"
+        )
     if result.exit_status != 0:
         stdout = (result.stdout or "").strip()
         if not stdout:
@@ -226,7 +241,7 @@ async def fetch_metrics(vps: VpsInstance, db_path: str) -> dict[str, Any]:
         return await asyncio.to_thread(_query_local, db_path)
 
     try:
-        async with asyncssh.connect(**_build_connect_kwargs(vps)) as conn:
+        async with asyncssh.connect(**build_connect_kwargs(vps)) as conn:
             results: dict[str, Any] = {}
             for key, sql in _QUERIES.items():
                 try:

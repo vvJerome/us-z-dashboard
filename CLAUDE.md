@@ -1,6 +1,6 @@
 # us-z-dashboard
 
-Universal scraper platform: React dashboard + FastAPI backend + PostgreSQL + Kestra orchestrator + Docker pipeline containers on a single Hetzner VPS.
+Universal scraper platform: React dashboard + FastAPI backend + PostgreSQL on a single Hetzner VPS. The backend triggers the `universal-scraper-v3` pipeline on a dedicated worker VPS (worker-v3) over SSH + tmux — see [ADR-007](.claude/directions/adr-007-ssh-tmux-worker.md). (Kestra orchestration, ADR-001, is superseded.)
 
 Full architecture: [docs/context.md](docs/context.md)
 
@@ -19,7 +19,8 @@ Full architecture: [docs/context.md](docs/context.md)
 
 See `.claude/directions/` for full ADRs:
 
-- **ADR-001** — Kestra for job orchestration (concurrency limit 5, retry, cancel API)
+- **ADR-001** — Kestra for job orchestration (**superseded by ADR-007**)
+- **ADR-007** — SSH + tmux trigger of universal-scraper-v3 on worker-v3; backend FIFO queue (concurrency 1)
 - **ADR-002** — 10-second HTTP polling, no WebSocket
 - **ADR-003** — Single Hetzner VPS + Docker Compose, no Kubernetes
 - **ADR-004** — Isolated Docker container per job

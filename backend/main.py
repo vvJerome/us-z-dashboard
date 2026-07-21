@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
@@ -11,34 +12,50 @@ from sqlalchemy import select
 from .database import AsyncSessionLocal, engine
 from .models import VpsInstance
 from .routers import jobs, metrics, vps, zerobounce
+from .services import job_queue
 from .settings import get_settings
 
 
-async def _seed_default_vps() -> None:
-    """Insert a local VPS record on first boot if none exist."""
+async def _seed_worker_vps() -> None:
+    """Insert the worker-v3 VPS record on first boot if it does not exist."""
     settings = get_settings()
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(VpsInstance).limit(1))
+        result = await db.execute(
+            select(VpsInstance).where(VpsInstance.name == "worker-v3")
+        )
         if result.scalar_one_or_none() is not None:
             return
-        local_vps = VpsInstance(
+        worker = VpsInstance(
             id=uuid.uuid4(),
-            name="Local (Hetzner)",
-            kestra_url=settings.kestra_base_url,
-            kestra_webhook_key=settings.kestra_webhook_key,
-            is_local=True,
+            name="worker-v3",
+            is_local=False,
+            ssh_host=settings.worker_ssh_host,
+            ssh_user=settings.worker_ssh_user,
+            ssh_port=settings.worker_ssh_port,
+            ssh_key_path=settings.worker_ssh_key_path,
+            data_dir=settings.worker_data_dir,
+            is_active=True,
         )
-        db.add(local_vps)
+        db.add(worker)
         await db.commit()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    task: asyncio.Task | None = None
     try:
-        await _seed_default_vps()
+        await _seed_worker_vps()
+        if get_settings().queue_loop_enabled:
+            task = asyncio.create_task(job_queue.queue_loop())
     except Exception:
         pass  # non-fatal — DB may not be reachable during tests or first-boot race
     yield
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await engine.dispose()
 
 

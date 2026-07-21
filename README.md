@@ -12,8 +12,8 @@ Full architecture: [docs/context.md](docs/context.md)
 |--------------|--------------------------------------------|
 | Dashboard    | React 18 + Vite + TanStack Query + Tailwind |
 | Backend      | FastAPI + SQLAlchemy 2.x + Alembic         |
-| Orchestrator | Kestra (self-hosted, concurrency limit: 5) |
-| Pipeline     | Docker container (Python 3.12)             |
+| Execution    | `universal-scraper-v3` on worker-v3, triggered over SSH + tmux; backend FIFO queue (concurrency 1) — see [ADR-007](.claude/directions/adr-007-ssh-tmux-worker.md) |
+| Pipeline     | Python 3.12 (venv on worker-v3)            |
 | Storage      | PostgreSQL 16 + local `/data` volume       |
 | Infra        | Docker Compose on Hetzner VPS              |
 
@@ -37,9 +37,9 @@ docker compose up -d
 # 4. Apply database migrations
 docker compose exec backend alembic upgrade head
 
-# 5. Upload the Kestra flow
-curl -X POST http://localhost:8080/api/v1/flows/import \
-  -F fileUpload=@kestra/flows/run-scraper.yml
+# 5. Ensure worker-v3 is reachable (SSH key loaded, tmux + sqlite3 installed,
+#    universal-scraper-v3 checked out with a valid .env + SMTP fleet).
+#    The backend seeds the worker-v3 VPS row and starts the job queue on boot.
 ```
 
 **Access URLs:**
@@ -48,7 +48,6 @@ curl -X POST http://localhost:8080/api/v1/flows/import \
 |--------------|------------------------------|
 | Dashboard    | http://localhost:3000        |
 | Backend docs | http://localhost:8000/docs   |
-| Kestra UI    | http://localhost:8080        |
 
 ---
 
@@ -62,7 +61,8 @@ git clone <repo-url> && cd us-z-dashboard
 
 # 2. Create and populate .env
 cp .env.template .env
-# Fill in DATABASE_URL, JWT_SECRET_KEY, KESTRA_BASE_URL, KESTRA_WEBHOOK_KEY
+# Fill in DATABASE_URL, JWT_SECRET_KEY, and the WORKER_* worker-v3 settings.
+# Mount the worker SSH key at WORKER_SSH_KEY_PATH.
 
 # 3. Start all services
 docker compose up -d
@@ -70,14 +70,10 @@ docker compose up -d
 # 4. Apply migrations
 docker compose exec backend alembic upgrade head
 
-# 5. Upload the Kestra flow
-curl -X POST http://localhost:8080/api/v1/flows/import \
-  -F fileUpload=@kestra/flows/run-scraper.yml
-
-# 6. Run the pre-deploy checklist
+# 5. Run the pre-deploy checklist (includes the worker-v3 reachability smoke test)
 /deploy-check
 
-# 7. TLS — place your certificates in nginx/certs/ and restart nginx
+# 6. TLS — place your certificates in nginx/certs/ and restart nginx
 docker compose restart nginx
 ```
 
@@ -93,7 +89,7 @@ docker compose restart nginx
 6. Click the job row to open the **log viewer**
 7. Once status is `COMPLETED`, click **Download** to get the output file
 
-> Up to 5 jobs run concurrently. The Submit button disables with "5/5 slots in use" when all slots are taken — new jobs are queued automatically by Kestra and start when a slot frees up.
+> worker-v3 runs one job at a time. Additional submissions stay `QUEUED` and the backend starts the next one automatically when the current run finishes. (The "5/5 slots" UI cap is now a soft guard only.)
 
 ---
 

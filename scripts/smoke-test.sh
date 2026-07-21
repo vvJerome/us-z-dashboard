@@ -35,14 +35,19 @@ else
   check "Backend health endpoint" "got: $HEALTH"
 fi
 
-# ── Kestra API ────────────────────────────────────────────────────────────────
-KESTRA_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/flows/prod/run-scraper 2>/dev/null || echo "000")
-if [[ "$KESTRA_STATUS" == "200" ]]; then
-  check "Kestra flow prod/run-scraper is active" "ok"
-elif [[ "$KESTRA_STATUS" == "000" ]]; then
-  check "Kestra API reachable" "unreachable — is Kestra running?"
+# ── Worker VPS (universal-scraper-v3) ─────────────────────────────────────────
+WORKER_HOST="${WORKER_SSH_HOST:-95.217.63.54}"
+WORKER_USER="${WORKER_SSH_USER:-devonly}"
+WORKER_DATA="${WORKER_DATA_DIR:-/home/devonly/data}"
+WORKER_KEY="${WORKER_SSH_KEY_PATH:-/root/.ssh/id_worker_v3}"
+WORKER_CHECK=$(ssh -i "$WORKER_KEY" -o BatchMode=yes -o ConnectTimeout=8 \
+  "$WORKER_USER@$WORKER_HOST" \
+  "tmux -V >/dev/null 2>&1 && command -v sqlite3 >/dev/null 2>&1 && test -d $WORKER_DATA && echo ok" \
+  2>/dev/null || echo "unreachable")
+if [[ "$WORKER_CHECK" == "ok" ]]; then
+  check "Worker VPS reachable (tmux + sqlite3 + data dir)" "ok"
 else
-  check "Kestra flow prod/run-scraper is active" "HTTP $KESTRA_STATUS — upload the flow first"
+  check "Worker VPS reachable (tmux + sqlite3 + data dir)" "$WORKER_CHECK — check SSH key, tmux, sqlite3, and $WORKER_DATA on $WORKER_HOST"
 fi
 
 # ── Docker data volume ────────────────────────────────────────────────────────

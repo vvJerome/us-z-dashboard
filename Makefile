@@ -32,7 +32,7 @@ help:
 	@echo "    make setup-dashboard    npm install in dashboard/"
 	@echo ""
 	@echo "  Local dev"
-	@echo "    make dev-infra          Start postgres + kestra via docker-compose"
+	@echo "    make dev-infra          Start postgres via docker-compose"
 	@echo "    make dev-backend        Run FastAPI with hot reload on :8000"
 	@echo "    make dev-dashboard      Run Vite dev server on :3000 (proxies /api → :8000)"
 	@echo ""
@@ -77,8 +77,8 @@ setup-dashboard:
 # ── Local dev ────────────────────────────────────────────────────────────────
 
 dev-infra:
-	docker-compose up -d postgres kestra
-	@echo "Postgres on :5432, Kestra on :8080 (internal only)"
+	docker-compose up -d postgres
+	@echo "Postgres on :5432"
 
 dev-backend: _check-backend-venv
 	cd backend && DATABASE_URL=$(DB_URL) \

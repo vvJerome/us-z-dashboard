@@ -45,50 +45,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # ── Orchestration ───────────────────────────────────────────────────────────
-
-  kestra:
-    image: kestra/kestra:latest-full
-    restart: unless-stopped
-    command: server standalone
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - kestra_storage:/app/storage
-      - ./kestra/flows:/app/flows
-      - /var/run/docker.sock:/var/run/docker.sock
-      - data_volume:/data
-      - ${RACKNERD_SSH_KEY_PATH:-/root/.ssh/racknerd_egress}:/root/.ssh/racknerd_egress:ro
-    ports:
-      - "127.0.0.1:8080:8080"
-    environment:
-      JAVA_OPTS: "-Xms256m -Xmx512m"
-      DATASOURCES_POSTGRES_URL: "jdbc:postgresql://postgres:5432/kestra"
-      DATASOURCES_POSTGRES_DRIVER_CLASS_NAME: "org.postgresql.Driver"
-      DATASOURCES_POSTGRES_USERNAME: ${POSTGRES_USER:-scraper}
-      DATASOURCES_POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      KESTRA_REPOSITORY_TYPE: postgres
-      KESTRA_QUEUE_TYPE: postgres
-      KESTRA_STORAGE_TYPE: local
-      KESTRA_STORAGE_LOCAL_BASE_PATH: /app/storage
-      KESTRA_FLOWS_BASE_PATH: /app/flows
-      KESTRA_SERVER_BASIC_AUTH_ENABLED: "false"
-      GITHUB_ORG: ${GITHUB_ORG}
-      IMAGE_TAG: ${IMAGE_TAG:-latest}
-      KESTRA_WEBHOOK_KEY: ${KESTRA_WEBHOOK_KEY}
-      SERPER_API_KEY: ${SERPER_API_KEY}
-      ZUHAL_API_KEY: ${ZUHAL_API_KEY}
-      RACKNERD_HOST: ${RACKNERD_HOST}
-      RACKNERD_SSH_USER: ${RACKNERD_SSH_USER:-egress}
-      RACKNERD_SSH_PORT: ${RACKNERD_SSH_PORT:-22}
-      RACKNERD_SOCKS_PORT: ${RACKNERD_SOCKS_PORT:-1080}
-      BBOPS_BASE_URL: ${BBOPS_BASE_URL:-https://email-verifier.bbops.io}
-    deploy:
-      resources:
-        limits:
-          memory: 700M
-
   # ── Application ─────────────────────────────────────────────────────────────
 
   backend:
@@ -104,9 +60,7 @@ services:
         condition: service_healthy
     volumes:
       - data_volume:/data
-      - ${RACKNERD_SSH_KEY_PATH:-/root/.ssh/id_vps1}:/root/.ssh/id_vps1:ro
-      - ${VPS2_SSH_KEY_PATH:-/root/.ssh/id_vps2}:/root/.ssh/id_vps2:ro
-      - ${VPS3_SSH_KEY_PATH:-/root/.ssh/id_vps3}:/root/.ssh/id_vps3:ro
+      - ${WORKER_SSH_KEY_PATH:-/root/.ssh/id_worker_v3}:/root/.ssh/id_worker_v3:ro
     ports:
       - "127.0.0.1:8000:8000"
     env_file: .env
@@ -154,5 +108,4 @@ services:
 
 volumes:
   postgres_data:
-  kestra_storage:
   data_volume:

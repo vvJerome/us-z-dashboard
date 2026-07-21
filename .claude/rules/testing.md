@@ -10,7 +10,7 @@ Three levels of testing for us-z-dashboard. Each level has a distinct purpose an
 
 **When**: on every file save (post-tool hook), before every commit.  
 **Speed**: < 10 seconds total.  
-**Rule**: nothing real. All external dependencies (Kestra, object storage, network) are mocked.
+**Rule**: nothing real. All external dependencies (the worker VPS over SSH, object storage, network) are mocked.
 
 | Component | Framework | Command |
 |-----------|-----------|---------|
@@ -20,9 +20,10 @@ Three levels of testing for us-z-dashboard. Each level has a distinct purpose an
 
 **Backend unit tests** (`backend/tests/` — exclude `feature/`):
 - All 6 route handlers: happy path + error cases (400, 404, 409, 413, 422)
-- Kestra state mapping: all states → our status enum (parametrized)
+- Worker status mapping: sentinel tokens (DONE / FAILED:n / RUNNING / GONE) → our status enum (parametrized)
 - File path sanitization: `..` rejected with 400
-- `services/kestra.py`: trigger, status fetch, cancel — mocked via pytest-httpx
+- `services/worker.py`: trigger, status fetch, cancel — asyncssh mocked
+- `services/job_queue.py`: promote oldest QUEUED, no-op when one RUNNING, dispatch-failure marks FAILED
 - `services/storage.py`: save upload, log tail, output exists, path traversal rejection
 - Alembic migrations: `test_migrations.py` verifies schema roundtrip
 
@@ -46,8 +47,8 @@ Three levels of testing for us-z-dashboard. Each level has a distinct purpose an
 ### Feature tests — `make test-feature`
 
 **When**: before opening a PR, after touching a route handler or storage layer.  
-**Speed**: < 30 seconds (real DB, real filesystem, Kestra still mocked).  
-**Rule**: no mocking of storage or database. Kestra is the only external dependency that is mocked.
+**Speed**: < 30 seconds (real DB, real filesystem, worker SSH still mocked).  
+**Rule**: no mocking of storage or database. The worker VPS (SSH/tmux) is the only external dependency that is mocked.
 
 Location: `backend/tests/feature/`  
 Mark: `@pytest.mark.feature`
@@ -59,8 +60,8 @@ Mark: `@pytest.mark.feature`
 - Server-side 100 MB file size rejection (client validation is a UX guard only)
 
 **What feature tests do NOT cover:**
-- Kestra internals (still mocked)
-- Multiple concurrent jobs (concurrency is enforced by Kestra, not FastAPI)
+- Worker-side pipeline internals (SSH/tmux still mocked)
+- Real concurrent execution on the worker (the box runs one job at a time)
 - Browser behaviour (that is smoke or E2E)
 
 ---
@@ -76,7 +77,7 @@ Script: `scripts/smoke-test.sh`
 **Checks**:
 1. PostgreSQL accepting connections (`pg_isready`)
 2. FastAPI `/health` endpoint returns `{"status": "ok"}`
-3. Kestra flow `prod/run-scraper` is uploaded and active
+3. Worker VPS reachable over SSH with `tmux`, `sqlite3`, and a writable data dir
 4. `data_volume` Docker volume exists
 5. nginx routing — `/health` reachable on port 80
 
@@ -104,7 +105,7 @@ Script: `scripts/smoke-test.sh`
 - Tailwind class names
 - Docker Compose service wiring or nginx config (verify with `/deploy-check` instead)
 - Proxy rotation (requires live proxies — mock at the boundary)
-- Kestra concurrency enforcement (tested by Kestra's own test suite)
+- The pipeline's own internals on worker-v3 (tested in the universal-scraper-v3 repo)
 
 ---
 

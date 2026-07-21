@@ -14,7 +14,8 @@ Hard technology constraints for us-z-dashboard. Do not introduce alternatives wi
 - **SQLAlchemy 2.x async** — the only ORM. No raw psycopg2 queries, no Tortoise ORM, no SQLModel.
 - **Alembic** — all schema changes via versioned migrations. Never call `Base.metadata.create_all()` in production code.
 - **Pydantic v2** — all request/response models. Never return a raw `dict` from an endpoint handler.
-- **httpx** with `AsyncClient` — HTTP client for Kestra calls. Do not use `requests` in async code.
+- **httpx** with `AsyncClient` — HTTP client for any outbound HTTP. Do not use `requests` in async code.
+- **asyncssh** — SSH/SFTP to the worker VPS (trigger, file transfer, metrics). Do not shell out to the `ssh`/`scp` binaries from Python.
 - **ruff** — linting and formatting. Do not introduce black, flake8, or isort separately.
 
 ## Frontend
@@ -27,7 +28,7 @@ Hard technology constraints for us-z-dashboard. Do not introduce alternatives wi
 
 ## Infrastructure
 
-- **Kestra** — the ONLY job orchestrator. Do not add Celery, RQ, APScheduler, Bull, or cron jobs alongside it. See ADR-001.
+- **SSH + tmux to worker-v3** — the ONLY job execution path (see ADR-007). The backend triggers `universal-scraper-v3` over SSH and queues jobs in-process (concurrency 1). Do not add Kestra, Celery, RQ, APScheduler, Bull, or cron-based dispatch. ADR-001 (Kestra) is superseded.
 - **Docker Compose v2** — no Kubernetes, no Docker Swarm, no Nomad. See ADR-003.
 - **PostgreSQL 16** — the only database. No SQLite (even for tests — use a test PostgreSQL instance), no MySQL, no MongoDB.
 - **nginx** — TLS termination and reverse proxy. No Caddy, no Traefik.

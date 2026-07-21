@@ -33,7 +33,7 @@ describe("useJobs", () => {
           status: "QUEUED",
           input_filename: "test.jsonl",
           config: {},
-          kestra_execution_id: null,
+          worker_session: null,
           created_at: new Date().toISOString(),
           started_at: null,
           finished_at: null,

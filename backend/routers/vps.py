@@ -32,8 +32,6 @@ async def create_vps(
     vps = VpsInstance(
         id=uuid.uuid4(),
         name=body.name,
-        kestra_url=body.kestra_url,
-        kestra_webhook_key=body.kestra_webhook_key,
         is_local=body.is_local,
         ssh_host=body.ssh_host,
         ssh_user=body.ssh_user,
@@ -48,17 +46,13 @@ async def create_vps(
 
 
 @router.get("/{vps_id}", response_model=VpsResponse)
-async def get_vps(
-    vps_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> VpsInstance:
+async def get_vps(vps_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> VpsInstance:
     # TODO: add auth
     return await _fetch_vps(db, vps_id)
 
 
 @router.delete("/{vps_id}", status_code=204, response_model=None)
-async def delete_vps(
-    vps_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> None:
+async def delete_vps(vps_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> None:
     # TODO: add auth
     await _fetch_vps(db, vps_id)
     active_jobs = await db.execute(

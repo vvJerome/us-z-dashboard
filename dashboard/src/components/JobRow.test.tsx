@@ -18,7 +18,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     status: "RUNNING",
     input_filename: "records.jsonl",
     config: { enable_proxy: false, skip_duplicates: true },
-    kestra_execution_id: "exec-123",
+    worker_session: "job-abc",
     created_at: "2026-05-15T00:00:00Z",
     started_at: "2026-05-15T00:01:00Z",
     finished_at: null,

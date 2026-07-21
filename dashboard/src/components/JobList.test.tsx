@@ -17,7 +17,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     status: "QUEUED",
     input_filename: "records.jsonl",
     config: { enable_proxy: false, skip_duplicates: true },
-    kestra_execution_id: null,
+    worker_session: null,
     created_at: new Date().toISOString(),
     started_at: null,
     finished_at: null,

@@ -33,8 +33,6 @@ class VpsInstance(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    kestra_url: Mapped[str] = mapped_column(Text, nullable=False)
-    kestra_webhook_key: Mapped[str] = mapped_column(Text, nullable=False)
     is_local: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ssh_host: Mapped[str | None] = mapped_column(Text, nullable=True)
     ssh_user: Mapped[str] = mapped_column(Text, nullable=False, default="root")
@@ -66,7 +64,7 @@ class Job(Base):
     input_file_key: Mapped[str] = mapped_column(Text, nullable=False)
     output_file_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
-    kestra_execution_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    worker_session: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -99,5 +97,9 @@ class ZeroBounceJob(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

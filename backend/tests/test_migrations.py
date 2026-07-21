@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 TEST_DB_URL = os.environ.get(
@@ -17,10 +17,20 @@ async def migrated_engine():
     """Apply all Alembic migrations to the test DB and return an engine."""
     import subprocess
 
+    # Pass the async URL through: alembic/env.py imports backend.models (which
+    # eagerly builds an async engine) and does its own sync-driver conversion for
+    # Alembic itself. Project root on PYTHONPATH so `backend.models` resolves.
+    project_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
     result = subprocess.run(
         ["alembic", "upgrade", "head"],
         cwd="backend",
-        env={**os.environ, "DATABASE_URL": TEST_DB_URL.replace("+asyncpg", "")},
+        env={
+            **os.environ,
+            "DATABASE_URL": TEST_DB_URL,
+            "PYTHONPATH": project_root,
+        },
         capture_output=True,
         text=True,
     )
@@ -33,11 +43,9 @@ async def migrated_engine():
 
 async def test_migrations_apply_cleanly(migrated_engine) -> None:
     async with migrated_engine.connect() as conn:
-        result = await conn.execute(
-            text("SELECT version_num FROM alembic_version")
-        )
+        result = await conn.execute(text("SELECT version_num FROM alembic_version"))
         version = result.scalar_one()
-    assert version == "001", f"Expected head revision '001', got '{version}'"
+    assert version == "005", f"Expected head revision '005', got '{version}'"
 
 
 async def test_users_table_exists_with_correct_columns(migrated_engine) -> None:
@@ -72,9 +80,18 @@ async def test_jobs_table_exists_with_correct_columns(migrated_engine) -> None:
         columns = {row[0] for row in result}
 
     required = {
-        "id", "user_id", "status", "input_filename", "input_file_key",
-        "output_file_key", "config", "kestra_execution_id",
-        "created_at", "started_at", "finished_at", "error_message",
+        "id",
+        "user_id",
+        "status",
+        "input_filename",
+        "input_file_key",
+        "output_file_key",
+        "config",
+        "worker_session",
+        "created_at",
+        "started_at",
+        "finished_at",
+        "error_message",
     }
     missing = required - columns
     assert not missing, f"Missing columns in jobs table: {missing}"

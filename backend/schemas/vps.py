@@ -8,8 +8,6 @@ from pydantic import BaseModel, ConfigDict
 
 class VpsCreate(BaseModel):
     name: str
-    kestra_url: str
-    kestra_webhook_key: str
     is_local: bool = False
     ssh_host: str | None = None
     ssh_user: str = "root"
@@ -23,7 +21,6 @@ class VpsResponse(BaseModel):
 
     id: uuid.UUID
     name: str
-    kestra_url: str
     is_local: bool
     ssh_host: str | None
     ssh_user: str

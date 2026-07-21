@@ -1,16 +1,12 @@
 export type JobStatus =
-  | "QUEUED"
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED";
+  "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
 
 export interface Job {
   id: string;
   status: JobStatus;
   input_filename: string;
   config: Record<string, boolean>;
-  kestra_execution_id: string | null;
+  worker_session: string | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;

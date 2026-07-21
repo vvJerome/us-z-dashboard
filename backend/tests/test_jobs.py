@@ -3,45 +3,64 @@ from __future__ import annotations
 import uuid
 
 from httpx import AsyncClient
-from pytest_httpx import HTTPXMock
+
+from .conftest import WorkerController
 
 
-KESTRA_TRIGGER_URL = (
-    "http://kestra-mock:8080/api/v1/executions/webhook/prod/run-scraper/test-key"
-)
+async def _create(client: AsyncClient, data: bytes, name: str = "records.jsonl"):
+    return await client.post(
+        "/jobs",
+        files={"file": (name, data, "application/octet-stream")},
+        params={"enable_proxy": "false", "skip_duplicates": "true"},
+    )
 
 
 # ── POST /jobs ────────────────────────────────────────────────────────────────
 
 
-async def test_create_job_success(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+async def test_create_job_promotes_to_running(
+    client: AsyncClient, sample_jsonl: bytes
 ) -> None:
-    httpx_mock.add_response(
-        url=KESTRA_TRIGGER_URL, json={"id": "exec-abc"}, status_code=200
-    )
+    """An idle worker picks the job up immediately on submit."""
+    response = await _create(client, sample_jsonl)
 
-    response = await client.post(
-        "/jobs",
-        files={"file": ("records.jsonl", sample_jsonl, "application/octet-stream")},
-        params={"enable_proxy": "false", "skip_duplicates": "true"},
-    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "RUNNING"
+    assert data["input_filename"] == "records.jsonl"
+    assert data["worker_session"] == f"job-{data['id']}"
+    assert data["config"] == {"enable_proxy": False, "skip_duplicates": True}
+
+
+async def test_create_job_queued_when_worker_busy(
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes
+) -> None:
+    """When the worker already has a run, the job stays queued."""
+    worker.busy = True
+    response = await _create(client, sample_jsonl)
 
     assert response.status_code == 201
     data = response.json()
     assert data["status"] == "QUEUED"
-    assert data["input_filename"] == "records.jsonl"
-    assert data["kestra_execution_id"] == "exec-abc"
-    assert data["config"] == {"enable_proxy": False, "skip_duplicates": True}
+    assert data["worker_session"] is None
+
+
+async def test_create_job_dispatch_failure_marks_failed(
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes
+) -> None:
+    worker.trigger_error = RuntimeError("tmux launch failed")
+    response = await _create(client, sample_jsonl)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "FAILED"
+    assert "Dispatch failed" in data["error_message"]
 
 
 async def test_create_job_invalid_extension(
     client: AsyncClient, sample_jsonl: bytes
 ) -> None:
-    response = await client.post(
-        "/jobs",
-        files={"file": ("report.xlsx", sample_jsonl, "application/octet-stream")},
-    )
+    response = await _create(client, sample_jsonl, name="report.xlsx")
     assert response.status_code == 400
     assert "not allowed" in response.json()["detail"]
 
@@ -51,24 +70,8 @@ async def test_create_job_no_filename(client: AsyncClient, sample_jsonl: bytes) 
         "/jobs",
         files={"file": ("", sample_jsonl, "application/octet-stream")},
     )
-    # FastAPI raises 422 (framework validation) before our handler runs when filename is empty
+    # FastAPI raises 422 before our handler runs when the filename is empty
     assert response.status_code in (400, 422)
-
-
-async def test_create_job_kestra_failure(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
-) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, status_code=500)
-
-    response = await client.post(
-        "/jobs",
-        files={"file": ("records.jsonl", sample_jsonl, "application/octet-stream")},
-    )
-
-    assert response.status_code == 201
-    data = response.json()
-    assert data["status"] == "FAILED"
-    assert "Kestra" in data["error_message"]
 
 
 # ── GET /jobs ─────────────────────────────────────────────────────────────────
@@ -83,13 +86,9 @@ async def test_list_jobs_empty(client: AsyncClient) -> None:
 
 
 async def test_list_jobs_returns_created(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+    client: AsyncClient, sample_jsonl: bytes
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-001"})
-    await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
-
+    await _create(client, sample_jsonl)
     response = await client.get("/jobs")
     assert response.status_code == 200
     assert response.json()["total"] == 1
@@ -103,35 +102,26 @@ async def test_get_job_not_found(client: AsyncClient) -> None:
     assert response.status_code == 404
 
 
-async def test_get_job_syncs_running_status(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+async def test_get_job_syncs_completion(
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes, tmp_path
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-sync"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
+    assert create_resp.json()["status"] == "RUNNING"
 
-    httpx_mock.add_response(
-        url="http://kestra-mock:8080/api/v1/executions/exec-sync",
-        json={"state": {"current": "RUNNING"}},
-    )
-
+    # Pipeline finishes: worker reports COMPLETED on the next poll.
+    worker.status = ("COMPLETED", None)
     response = await client.get(f"/jobs/{job_id}")
     assert response.status_code == 200
-    assert response.json()["status"] == "RUNNING"
+    assert response.json()["status"] == "COMPLETED"
+    assert response.json()["output_file_key"] == f"outputs/{job_id}/result.csv"
 
 
 # ── GET /jobs/{id}/logs ───────────────────────────────────────────────────────
 
 
-async def test_get_logs_no_file(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
-) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-log"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+async def test_get_logs_no_file(client: AsyncClient, sample_jsonl: bytes) -> None:
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
 
     response = await client.get(f"/jobs/{job_id}/logs")
@@ -140,12 +130,9 @@ async def test_get_logs_no_file(
 
 
 async def test_get_logs_with_content(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes, tmp_path
+    client: AsyncClient, sample_jsonl: bytes, tmp_path
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-log2"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
 
     log_path = tmp_path / "logs" / job_id / "run.log"
@@ -157,32 +144,21 @@ async def test_get_logs_with_content(
     assert response.json()["lines"] == ["line one", "line two", "line three"]
 
 
-# ── GET /jobs/{id}/download ───────────────────────────────────────────────────
+# ── GET /jobs/{id}/download and /file ─────────────────────────────────────────
 
 
-async def test_download_not_completed(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
-) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-dl"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+async def test_download_not_completed(client: AsyncClient, sample_jsonl: bytes) -> None:
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
 
     response = await client.get(f"/jobs/{job_id}/download")
     assert response.status_code == 409
 
 
-# ── GET /jobs/{id}/file ──────────────────────────────────────────────────────
-
-
 async def test_download_file_not_completed(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+    client: AsyncClient, sample_jsonl: bytes
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-file1"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
 
     response = await client.get(f"/jobs/{job_id}/file")
@@ -190,24 +166,17 @@ async def test_download_file_not_completed(
 
 
 async def test_download_file_streams_csv(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes, tmp_path
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes, tmp_path
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-file2"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
 
-    # Simulate pipeline writing output and Kestra completing the job
+    # Pipeline writes the output, then reports completion.
     out = tmp_path / "outputs" / job_id / "result.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("email,domain\nfoo@bar.com,bar.com\n")
-
-    httpx_mock.add_response(
-        url=f"http://kestra-mock:8080/api/v1/executions/exec-file2",
-        json={"state": {"current": "SUCCESS"}},
-    )
-    await client.get(f"/jobs/{job_id}")  # sync status → COMPLETED
+    worker.status = ("COMPLETED", None)
+    await client.get(f"/jobs/{job_id}")  # sync → COMPLETED
 
     response = await client.get(f"/jobs/{job_id}/file")
     assert response.status_code == 200
@@ -216,19 +185,13 @@ async def test_download_file_streams_csv(
 
 
 async def test_download_file_missing_output(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-file3"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
 
-    httpx_mock.add_response(
-        url=f"http://kestra-mock:8080/api/v1/executions/exec-file3",
-        json={"state": {"current": "SUCCESS"}},
-    )
-    await client.get(f"/jobs/{job_id}")  # sync status → COMPLETED, but no file written
+    worker.status = ("COMPLETED", None)
+    await client.get(f"/jobs/{job_id}")  # sync → COMPLETED, but no file written
 
     response = await client.get(f"/jobs/{job_id}/file")
     assert response.status_code == 404
@@ -238,23 +201,32 @@ async def test_download_file_missing_output(
 
 
 async def test_cancel_queued_job(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-cancel"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+    worker.busy = True  # stays QUEUED (never dispatched)
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
-
-    httpx_mock.add_response(
-        url="http://kestra-mock:8080/api/v1/executions/exec-cancel/kill",
-        status_code=204,
-    )
+    assert create_resp.json()["status"] == "QUEUED"
 
     response = await client.delete(f"/jobs/{job_id}")
     assert response.status_code == 204
+    assert worker.cancelled == []  # queued job was never on the worker
 
-    # _sync_status skips Kestra when status is already CANCELLED — no mock needed
+    get_resp = await client.get(f"/jobs/{job_id}")
+    assert get_resp.json()["status"] == "CANCELLED"
+
+
+async def test_cancel_running_job_kills_session(
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes
+) -> None:
+    create_resp = await _create(client, sample_jsonl)
+    job_id = create_resp.json()["id"]
+    assert create_resp.json()["status"] == "RUNNING"
+
+    response = await client.delete(f"/jobs/{job_id}")
+    assert response.status_code == 204
+    assert job_id in worker.cancelled
+
     get_resp = await client.get(f"/jobs/{job_id}")
     assert get_resp.json()["status"] == "CANCELLED"
 
@@ -265,22 +237,15 @@ async def test_cancel_nonexistent_job(client: AsyncClient) -> None:
 
 
 async def test_cancel_completed_job_rejected(
-    client: AsyncClient, httpx_mock: HTTPXMock, sample_jsonl: bytes, tmp_path
+    client: AsyncClient, worker: WorkerController, sample_jsonl: bytes, tmp_path
 ) -> None:
-    httpx_mock.add_response(url=KESTRA_TRIGGER_URL, json={"id": "exec-cancel2"})
-    create_resp = await client.post(
-        "/jobs", files={"file": ("r.jsonl", sample_jsonl, "application/octet-stream")}
-    )
+    create_resp = await _create(client, sample_jsonl)
     job_id = create_resp.json()["id"]
 
     out = tmp_path / "outputs" / job_id / "result.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("done\n")
-
-    httpx_mock.add_response(
-        url=f"http://kestra-mock:8080/api/v1/executions/exec-cancel2",
-        json={"state": {"current": "SUCCESS"}},
-    )
+    worker.status = ("COMPLETED", None)
     await client.get(f"/jobs/{job_id}")  # sync → COMPLETED
 
     response = await client.delete(f"/jobs/{job_id}")

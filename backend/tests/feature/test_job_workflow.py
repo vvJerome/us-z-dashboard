@@ -4,20 +4,19 @@ Feature tests — full job workflow through the FastAPI stack.
 These tests exercise the complete request lifecycle with:
   - Real PostgreSQL (scraper_test database)
   - Real local filesystem storage (tmp_path)
-  - Kestra mocked via pytest-httpx (no real orchestrator needed)
+  - The worker VPS (SSH/tmux) mocked via the FakeWorker fixture in conftest
 
 They differ from unit tests by not mocking the storage layer and by
 verifying that file I/O, database state, and HTTP responses are consistent
 across the full create → status → logs → download sequence.
 """
+
 from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from pytest_httpx import HTTPXMock
 
-TRIGGER_URL = "http://kestra-mock:8080/api/v1/executions/webhook/prod/run-scraper/test-key"
-EXEC_ID = "feature-exec-001"
+from ..conftest import WorkerController
 
 SAMPLE_JSONL = (
     b'{"unique_id":"F001","business_name":"Acme Corp","agent_name":"John","state":"FL"}\n'
@@ -28,12 +27,10 @@ SAMPLE_JSONL = (
 @pytest.mark.feature
 async def test_full_create_and_retrieve_workflow(
     client: AsyncClient,
-    httpx_mock: HTTPXMock,
+    worker: WorkerController,
     tmp_path,
 ) -> None:
-    """Upload → job created → status retrievable → logs endpoint responds."""
-    httpx_mock.add_response(url=TRIGGER_URL, json={"id": EXEC_ID})
-
+    """Upload → job dispatched → status retrievable → appears in list."""
     create_resp = await client.post(
         "/jobs",
         files={"file": ("records.jsonl", SAMPLE_JSONL, "application/octet-stream")},
@@ -43,21 +40,17 @@ async def test_full_create_and_retrieve_workflow(
     job = create_resp.json()
     job_id = job["id"]
 
-    assert job["status"] == "QUEUED"
-    assert job["kestra_execution_id"] == EXEC_ID
+    assert job["status"] == "RUNNING"
+    assert job["worker_session"] == f"job-{job_id}"
     assert job["input_filename"] == "records.jsonl"
     assert job["config"] == {"enable_proxy": False, "skip_duplicates": True}
 
-    # Uploaded file exists on disk
+    # Uploaded file exists on disk (local VPS → no SFTP push)
     stored = tmp_path / "inputs" / job_id / "records.jsonl"
     assert stored.exists()
     assert stored.read_bytes() == SAMPLE_JSONL
 
-    # Job is retrievable via GET
-    httpx_mock.add_response(
-        url=f"http://kestra-mock:8080/api/v1/executions/{EXEC_ID}",
-        json={"state": {"current": "RUNNING"}},
-    )
+    # Job is retrievable via GET and still RUNNING
     get_resp = await client.get(f"/jobs/{job_id}")
     assert get_resp.status_code == 200
     assert get_resp.json()["status"] == "RUNNING"
@@ -72,30 +65,25 @@ async def test_full_create_and_retrieve_workflow(
 @pytest.mark.feature
 async def test_download_only_available_when_completed(
     client: AsyncClient,
-    httpx_mock: HTTPXMock,
+    worker: WorkerController,
     tmp_path,
 ) -> None:
-    """Download endpoint is 409 while running, available once output file exists."""
-    httpx_mock.add_response(url=TRIGGER_URL, json={"id": EXEC_ID})
+    """Download endpoint is 409 while running, available once output exists."""
     create_resp = await client.post(
         "/jobs",
         files={"file": ("records.jsonl", SAMPLE_JSONL, "application/octet-stream")},
     )
     job_id = create_resp.json()["id"]
 
-    # Still QUEUED — download unavailable
+    # Still RUNNING — download unavailable
     download_resp = await client.get(f"/jobs/{job_id}/download")
     assert download_resp.status_code == 409
 
-    # Simulate completion: write the output file and sync status to COMPLETED
+    # Simulate completion: pipeline writes output and reports COMPLETED
     output = tmp_path / "outputs" / job_id / "result.csv"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("email,domain\nfoo@bar.com,bar.com\n")
-
-    httpx_mock.add_response(
-        url=f"http://kestra-mock:8080/api/v1/executions/{EXEC_ID}",
-        json={"state": {"current": "SUCCESS"}},
-    )
+    worker.status = ("COMPLETED", None)
     await client.get(f"/jobs/{job_id}")  # triggers status sync → COMPLETED
 
     # Now download is available
@@ -113,18 +101,15 @@ async def test_download_only_available_when_completed(
 @pytest.mark.feature
 async def test_logs_served_from_filesystem(
     client: AsyncClient,
-    httpx_mock: HTTPXMock,
     tmp_path,
 ) -> None:
-    """Log lines written by the pipeline container are served to the dashboard."""
-    httpx_mock.add_response(url=TRIGGER_URL, json={"id": EXEC_ID})
+    """Log lines written by the pipeline are served to the dashboard."""
     create_resp = await client.post(
         "/jobs",
         files={"file": ("records.jsonl", SAMPLE_JSONL, "application/octet-stream")},
     )
     job_id = create_resp.json()["id"]
 
-    # Simulate pipeline writing logs
     log_file = tmp_path / "logs" / job_id / "run.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     log_file.write_text(
@@ -141,9 +126,41 @@ async def test_logs_served_from_filesystem(
 
 
 @pytest.mark.feature
+async def test_second_job_queues_behind_running(
+    client: AsyncClient,
+    worker: WorkerController,
+) -> None:
+    """Only one job runs at a time; the second stays QUEUED until the first ends."""
+    first = await client.post(
+        "/jobs",
+        files={"file": ("a.jsonl", SAMPLE_JSONL, "application/octet-stream")},
+    )
+    assert first.json()["status"] == "RUNNING"
+
+    second = await client.post(
+        "/jobs",
+        files={"file": ("b.jsonl", SAMPLE_JSONL, "application/octet-stream")},
+    )
+    assert second.json()["status"] == "QUEUED"
+    assert second.json()["worker_session"] is None
+
+    # First completes → the poll on GET marks it done and promotes the second job.
+    first_id = first.json()["id"]
+    worker.status = ("COMPLETED", None)
+    first_done = await client.get(f"/jobs/{first_id}")
+    assert first_done.json()["status"] == "COMPLETED"
+
+    # The now-running second job reports RUNNING on its own poll.
+    worker.status = ("RUNNING", None)
+    second_id = second.json()["id"]
+    promoted = await client.get(f"/jobs/{second_id}")
+    assert promoted.json()["status"] == "RUNNING"
+    assert promoted.json()["worker_session"] == f"job-{second_id}"
+
+
+@pytest.mark.feature
 async def test_server_side_file_size_limit(
     client: AsyncClient,
-    httpx_mock: HTTPXMock,
 ) -> None:
     """Server must reject files over 100 MB regardless of client-side validation."""
     big_file = b"x" * (101 * 1024 * 1024)

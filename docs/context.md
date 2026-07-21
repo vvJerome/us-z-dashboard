@@ -11,14 +11,20 @@ This document describes the full architecture for a containerized data processin
 | Concern | Decision |
 |---|---|
 | Hosting | Hetzner VPS (single server) |
-| Concurrent jobs | Up to 5 simultaneously |
+| Concurrent jobs | One at a time on worker-v3; further submissions queued by the backend |
 | Job duration | Hours to days |
 | Users | 2–5 team members, login required |
 | Job input | JSONL/CSV file upload + config toggles |
 | Job output | Processed file, downloadable from dashboard |
-| Orchestration | Kestra (self-hosted on the same VPS) |
-| Pipeline runtime | Isolated Docker containers |
+| Orchestration | SSH + tmux trigger of `universal-scraper-v3` on worker-v3 (see [ADR-007](../.claude/directions/adr-007-ssh-tmux-worker.md)) |
+| Pipeline runtime | Python venv on worker-v3 (`entrypoint.py`) |
 | Image source | GitHub Container Registry (built by GitHub Actions) |
+
+> **Note (2026-07-16):** Sections below that describe Kestra, per-job Docker
+> containers, and the `kestra/flows/run-scraper.yml` flow are **historical** —
+> ADR-001/ADR-004 were superseded by ADR-007. The backend now triggers the
+> pipeline directly over SSH + tmux and queues jobs in-process (concurrency 1).
+> `services/kestra.py` was replaced by `services/worker.py` + `services/job_queue.py`.
 
 ---
 

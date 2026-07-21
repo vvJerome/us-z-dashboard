@@ -23,8 +23,54 @@ TEST_DB_URL = os.environ.get(
 # Matches the placeholder in routers/jobs.py
 PLACEHOLDER_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
-# Used by tests that mock Kestra HTTP calls
+# The worker VPS jobs default to. is_local=True so feature tests skip real
+# SFTP push/pull and read output straight from local tmp_path storage.
 TEST_VPS_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
+
+
+class WorkerController:
+    """Drives FakeWorker behavior for a single test."""
+
+    def __init__(self) -> None:
+        self.busy = False  # has_active_session()
+        self.status: tuple[str, str | None] = ("RUNNING", None)  # get_status()
+        self.trigger_error: Exception | None = None
+        self.cancelled: list[str] = []
+
+    def reset(self) -> None:
+        self.__init__()
+
+
+_worker_controller = WorkerController()
+
+
+class FakeWorker:
+    """Stand-in for WorkerClient — no real SSH. Reads the shared controller."""
+
+    def __init__(self, vps, repo_dir: str) -> None:
+        self._vps = vps
+
+    async def trigger(self, job_id, input_file_key, config) -> str:
+        if _worker_controller.trigger_error is not None:
+            raise _worker_controller.trigger_error
+        return f"job-{job_id}"
+
+    async def get_status(self, job_id) -> tuple[str, str | None]:
+        return _worker_controller.status
+
+    async def cancel(self, job_id) -> None:
+        _worker_controller.cancelled.append(str(job_id))
+
+    async def has_active_session(self) -> bool:
+        return _worker_controller.busy
+
+
+@pytest.fixture(autouse=True)
+def worker(monkeypatch) -> WorkerController:
+    _worker_controller.reset()
+    monkeypatch.setattr("backend.services.job_queue.WorkerClient", FakeWorker)
+    monkeypatch.setattr("backend.routers.jobs.WorkerClient", FakeWorker)
+    return _worker_controller
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -66,8 +112,6 @@ async def db(engine) -> AsyncSession:
                 VpsInstance(
                     id=TEST_VPS_ID,
                     name="Test Local VPS",
-                    kestra_url="http://kestra-mock:8080",
-                    kestra_webhook_key="test-key",
                     is_local=True,
                 )
             )

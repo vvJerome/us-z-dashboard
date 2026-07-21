@@ -10,9 +10,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str
-    kestra_base_url: str = "http://kestra:8080"
-    kestra_webhook_key: str = "dev-webhook-key"
     data_dir: Path = Path("/data")
+
+    # Worker VPS (universal-scraper-v3) — the only execution target.
+    worker_ssh_host: str = "95.217.63.54"
+    worker_ssh_user: str = "devonly"
+    worker_ssh_port: int = 22
+    worker_ssh_key_path: str = "/root/.ssh/id_worker_v3"
+    worker_data_dir: str = "/home/devonly/data"
+    worker_repo_dir: str = "/home/devonly/projects/universal-scraper-v3"
+    queue_loop_enabled: bool = True
 
     # TODO: add auth
     jwt_secret_key: str = "deferred"

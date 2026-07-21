@@ -1,6 +1,6 @@
 # ADR-001: Use Kestra for Job Orchestration
 
-**Status**: Accepted  
+**Status**: Superseded by [ADR-007](adr-007-ssh-tmux-worker.md) (2026-07-16)  
 **Date**: 2026-05-14
 
 ## Context

@@ -24,7 +24,7 @@ class JobResponse(BaseModel):
     status: JobStatus
     input_filename: str
     config: dict
-    kestra_execution_id: str | None
+    worker_session: str | None
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
