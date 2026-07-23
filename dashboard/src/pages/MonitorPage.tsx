@@ -287,7 +287,6 @@ function BackendsPanel({ data }: { data: MetricsResponse }) {
   ];
   const entries: [string, string][] = [
     ["racknerd", "Racknerd"],
-    ["bbops", "bbops"],
     ["zuhal", "Zuhal"],
   ];
   return card(
@@ -433,7 +432,6 @@ function RecentPanel({ data }: { data: MetricsResponse }) {
               <th className="p-1">id</th>
               <th className="p-1">email</th>
               <th className="p-1">rk</th>
-              <th className="p-1">bb</th>
               <th className="p-1">zuhal</th>
               <th className="p-1">when</th>
             </tr>
@@ -455,9 +453,6 @@ function RecentPanel({ data }: { data: MetricsResponse }) {
                 </td>
                 <td className="p-1">
                   <Pill v={r.racknerd_status} />
-                </td>
-                <td className="p-1">
-                  <Pill v={r.bbops_status} />
                 </td>
                 <td className="p-1">
                   <Pill v={r.zuhal_status} />

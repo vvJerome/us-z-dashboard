@@ -54,7 +54,6 @@ export interface MetricsValidatedRow {
   unique_id: string | null;
   candidate_email: string | null;
   racknerd_status: string | null;
-  bbops_status: string | null;
   zuhal_status: string | null;
   final_verdict: string | null;
   updated_at: string | null;
@@ -76,7 +75,6 @@ export interface MetricsResponse {
   throughput_60min: MetricsThroughputPoint[];
   backends: {
     racknerd: MetricsBackend;
-    bbops: MetricsBackend;
     zuhal: MetricsBackend;
   };
   discovery: MetricsDiscovery;

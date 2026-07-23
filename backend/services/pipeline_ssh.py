@@ -41,10 +41,6 @@ _QUERIES: dict[str, str] = {
         "SELECT racknerd_status AS v, COUNT(*) AS n FROM records"
         " WHERE racknerd_status IS NOT NULL GROUP BY 1"
     ),
-    "backend_bbops": (
-        "SELECT bbops_status AS v, COUNT(*) AS n FROM records"
-        " WHERE bbops_status IS NOT NULL GROUP BY 1"
-    ),
     "backend_zuhal": (
         "SELECT zuhal_status AS v, COUNT(*) AS n FROM records"
         " WHERE zuhal_status IS NOT NULL GROUP BY 1"
@@ -76,7 +72,7 @@ _QUERIES: dict[str, str] = {
         " GROUP BY 1 ORDER BY 1"
     ),
     "recent_validated": (
-        "SELECT unique_id, candidate_email, racknerd_status, bbops_status,"
+        "SELECT unique_id, candidate_email, racknerd_status,"
         " zuhal_status, final_verdict, updated_at"
         " FROM records WHERE record_state = 'VALIDATED'"
         " ORDER BY updated_at DESC, id DESC LIMIT 30"
@@ -87,13 +83,6 @@ _QUERIES: dict[str, str] = {
         " AND racknerd_message IS NOT NULL AND racknerd_message != ''"
         " AND updated_at > datetime('now', '-60 minutes')"
         " GROUP BY racknerd_message"
-    ),
-    "errors_bbops": (
-        "SELECT 'bbops' AS source, bbops_message AS message, COUNT(*) AS n"
-        " FROM records WHERE bbops_status='error'"
-        " AND bbops_message IS NOT NULL AND bbops_message != ''"
-        " AND updated_at > datetime('now', '-60 minutes')"
-        " GROUP BY bbops_message"
     ),
     "run_id": "SELECT run_id FROM stats ORDER BY rowid DESC LIMIT 1",
 }
@@ -154,9 +143,7 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         {"name": "zuhal", "calls": zu, "cost_usd": round(zu * API_COSTS["zuhal"], 4)},
     ]
 
-    errors = [dict(r) for r in (results.get("errors_racknerd") or [])] + [
-        dict(r) for r in (results.get("errors_bbops") or [])
-    ]
+    errors = [dict(r) for r in (results.get("errors_racknerd") or [])]
     errors.sort(key=lambda x: x.get("n", 0), reverse=True)
     for e in errors:
         if e.get("message") and len(e["message"]) > 140:
@@ -180,7 +167,6 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         ],
         "backends": {
             "racknerd": _backend(results.get("backend_racknerd")),
-            "bbops": _backend(results.get("backend_bbops")),
             "zuhal": _backend(results.get("backend_zuhal")),
         },
         "discovery": {
