@@ -8,6 +8,7 @@ export interface MetricsRate {
   last_15min: number;
   per_hour: number;
   eta_hours: number | null;
+  complete: boolean;
 }
 
 export interface MetricsThroughputPoint {

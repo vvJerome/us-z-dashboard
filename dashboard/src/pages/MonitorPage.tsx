@@ -173,8 +173,9 @@ function ThroughputPanel({ data }: { data: MetricsResponse }) {
     );
   }
   const eta = data.rate.eta_hours;
-  const etaStr =
-    eta == null
+  const etaStr = data.rate.complete
+    ? "done"
+    : eta == null
       ? "—"
       : eta >= 48
         ? `${(eta / 24).toFixed(1)} d`

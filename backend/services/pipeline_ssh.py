@@ -25,17 +25,25 @@ API_COSTS = {
 
 _QUERIES: dict[str, str] = {
     "state_counts": "SELECT record_state, COUNT(*) AS n FROM records GROUP BY record_state",
+    # Windows are anchored to the run's latest activity (MAX(updated_at)), not
+    # wall-clock now, so a finished run still shows its throughput/chart instead
+    # of zeros. For a live run MAX(updated_at) ~= now, so behavior is unchanged.
     "rate_15m": (
         "SELECT COUNT(*) AS n FROM records"
         " WHERE record_state IN ('VALIDATED','VALIDATION_FAILED')"
-        " AND updated_at > datetime('now', '-15 minutes')"
+        " AND updated_at > (SELECT datetime(MAX(updated_at), '-15 minutes') FROM records)"
     ),
     "throughput_60min": (
         "SELECT strftime('%H:%M', updated_at) AS minute, COUNT(*) AS count"
         " FROM records"
         " WHERE record_state IN ('VALIDATED','VALIDATION_FAILED')"
-        " AND updated_at > datetime('now', '-60 minutes')"
+        " AND updated_at > (SELECT datetime(MAX(updated_at), '-60 minutes') FROM records)"
         " GROUP BY 1 ORDER BY 1"
+    ),
+    "run_span": (
+        "SELECT (julianday(MAX(updated_at)) - julianday(MIN(created_at))) * 86400.0"
+        " AS elapsed_s FROM records"
+        " WHERE record_state IN ('VALIDATED','VALIDATION_FAILED','COST_SKIPPED','DISCOVERY_FAILED')"
     ),
     "backend_racknerd": (
         "SELECT racknerd_status AS v, COUNT(*) AS n FROM records"
@@ -103,8 +111,22 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
 
     rate_row = results.get("rate_15m") or [{"n": 0}]
     last_15 = rate_row[0].get("n", 0) if rate_row else 0
-    per_hour = last_15 * 4
-    eta_hours = round(pending / per_hour, 2) if per_hour > 0 else None
+    live_per_hour = last_15 * 4
+
+    # Overall run rate: processed terminal records over the run's elapsed time.
+    span_row = (results.get("run_span") or [{}])[0] if results.get("run_span") else {}
+    elapsed_s = span_row.get("elapsed_s") or 0
+    overall_per_hour = round(terminal / (elapsed_s / 3600.0)) if elapsed_s > 0 else 0
+
+    # A run is "complete" once nothing is pending and something finished. Then the
+    # headline shows the overall rate and ETA reads "done" (no work left to estimate).
+    complete = pending == 0 and terminal > 0
+    if complete:
+        per_hour = overall_per_hour
+        eta_hours = None
+    else:
+        per_hour = live_per_hour
+        eta_hours = round(pending / per_hour, 2) if per_hour > 0 else None
 
     def _backend(rows: list[dict]) -> dict[str, Any]:
         d = {r["v"]: r["n"] for r in (rows or [])}
@@ -162,7 +184,12 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         "build_ms": build_ms,
         "states": states,
         "totals": {"all": total, "terminal": terminal, "pending": pending},
-        "rate": {"last_15min": last_15, "per_hour": per_hour, "eta_hours": eta_hours},
+        "rate": {
+            "last_15min": last_15,
+            "per_hour": per_hour,
+            "eta_hours": eta_hours,
+            "complete": complete,
+        },
         "throughput_60min": [
             {"minute": r["minute"], "count": r["count"]}
             for r in (results.get("throughput_60min") or [])
