@@ -78,7 +78,7 @@ _QUERIES: dict[str, str] = {
         " ORDER BY updated_at DESC, id DESC LIMIT 30"
     ),
     "errors_racknerd": (
-        "SELECT 'racknerd' AS source, racknerd_message AS message, COUNT(*) AS n"
+        "SELECT 'cherry' AS source, racknerd_message AS message, COUNT(*) AS n"
         " FROM records WHERE racknerd_status='error'"
         " AND racknerd_message IS NOT NULL AND racknerd_message != ''"
         " AND updated_at > datetime('now', '-60 minutes')"
