@@ -14,10 +14,13 @@ from .ssh_common import build_connect_kwargs
 TERMINAL_STATES = ("VALIDATED", "VALIDATION_FAILED", "COST_SKIPPED")
 PENDING_STATES = ("DISCOVERED", "VALIDATING", "NEEDS_ZUHAL", "ZUHAL_VALIDATING")
 
+# Must mirror the pipeline's own pipeline/constants.py API_COSTS so the dashboard
+# cost breakdown reconciles with the pipeline-reported estimated_cost_usd.
 API_COSTS = {
     "serper_producer": 0.001,
     "serper_dispatcher": 0.001,
-    "zuhal": 0.0005,
+    "serper_places": 0.001,
+    "zuhal": 0.001,
 }
 
 _QUERIES: dict[str, str] = {
@@ -57,6 +60,7 @@ _QUERIES: dict[str, str] = {
     "cost_breakdown": (
         "SELECT SUM(serper_producer_calls) AS serper_producer_calls,"
         " SUM(serper_dispatcher_calls) AS serper_dispatcher_calls,"
+        " SUM(serper_places_calls) AS serper_places_calls,"
         " SUM(zuhal_calls) AS zuhal_calls FROM stats"
     ),
     "run_history": (
@@ -134,18 +138,18 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
     )
     sp = cb_row.get("serper_producer_calls") or 0
     sd = cb_row.get("serper_dispatcher_calls") or 0
+    spl = cb_row.get("serper_places_calls") or 0
     zu = cb_row.get("zuhal_calls") or 0
+    serper_cost = (
+        sp * API_COSTS["serper_producer"]
+        + sd * API_COSTS["serper_dispatcher"]
+        + spl * API_COSTS["serper_places"]
+    )
     services = [
         {
             "name": "serper",
-            "calls": sp + sd,
-            "cost_usd": round(
-                (
-                    sp * API_COSTS["serper_producer"]
-                    + sd * API_COSTS["serper_dispatcher"]
-                ),
-                4,
-            ),
+            "calls": sp + sd + spl,
+            "cost_usd": round(serper_cost, 4),
         },
         {"name": "zuhal", "calls": zu, "cost_usd": round(zu * API_COSTS["zuhal"], 4)},
     ]
