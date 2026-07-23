@@ -77,12 +77,20 @@ _QUERIES: dict[str, str] = {
         " FROM records WHERE record_state = 'VALIDATED'"
         " ORDER BY updated_at DESC, id DESC LIMIT 30"
     ),
+    # Errors for the whole run (per-job DB, so no wall-clock window):
+    # SMTP-backend error messages plus failure reasons on failed records.
     "errors_racknerd": (
         "SELECT 'cherry' AS source, racknerd_message AS message, COUNT(*) AS n"
         " FROM records WHERE racknerd_status='error'"
         " AND racknerd_message IS NOT NULL AND racknerd_message != ''"
-        " AND updated_at > datetime('now', '-60 minutes')"
         " GROUP BY racknerd_message"
+    ),
+    "errors_failures": (
+        "SELECT 'failure' AS source, failure_reason AS message, COUNT(*) AS n"
+        " FROM records"
+        " WHERE record_state IN ('VALIDATION_FAILED', 'DISCOVERY_FAILED')"
+        " AND failure_reason IS NOT NULL AND failure_reason != ''"
+        " GROUP BY failure_reason"
     ),
     "run_id": "SELECT run_id FROM stats ORDER BY rowid DESC LIMIT 1",
 }
@@ -143,7 +151,9 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         {"name": "zuhal", "calls": zu, "cost_usd": round(zu * API_COSTS["zuhal"], 4)},
     ]
 
-    errors = [dict(r) for r in (results.get("errors_racknerd") or [])]
+    errors = [dict(r) for r in (results.get("errors_racknerd") or [])] + [
+        dict(r) for r in (results.get("errors_failures") or [])
+    ]
     errors.sort(key=lambda x: x.get("n", 0), reverse=True)
     for e in errors:
         if e.get("message") and len(e["message"]) > 140:

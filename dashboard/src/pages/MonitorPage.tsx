@@ -473,7 +473,7 @@ function RecentPanel({ data }: { data: MetricsResponse }) {
 function ErrorsPanel({ data }: { data: MetricsResponse }) {
   return card(
     <>
-      {sectionTitle("Top errors (last hour)")}
+      {sectionTitle("Top errors")}
       <div className="overflow-auto" style={{ maxHeight: 380 }}>
         <table className="w-full font-mono text-xs">
           <thead className="text-left text-slate-400">
@@ -487,7 +487,7 @@ function ErrorsPanel({ data }: { data: MetricsResponse }) {
             {data.top_recent_errors.length === 0 ? (
               <tr>
                 <td colSpan={3} className="p-2 text-slate-500">
-                  no recent errors
+                  no errors
                 </td>
               </tr>
             ) : (
