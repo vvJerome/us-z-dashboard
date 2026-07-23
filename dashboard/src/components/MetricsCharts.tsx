@@ -147,7 +147,7 @@ export function RunHistoryChart({ rows }: RunHistoryChartProps) {
     }
 
     chartRef.current = new Chart(canvasRef.current, {
-      type: "line",
+      type: "bar",
       data: {
         labels,
         datasets: RUN_COLORS.map((s) => ({
@@ -156,9 +156,6 @@ export function RunHistoryChart({ rows }: RunHistoryChartProps) {
           backgroundColor: s.color,
           borderColor: s.border,
           borderWidth: 1,
-          fill: true,
-          pointRadius: 0,
-          tension: 0.25,
         })),
       },
       options: {
