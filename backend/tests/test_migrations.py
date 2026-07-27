@@ -12,9 +12,27 @@ TEST_DB_URL = os.environ.get(
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(autouse=True)
+def clean_jobs():
+    """Shadow conftest.py's autouse `clean_jobs` fixture (same name — pytest
+    resolves the closer one), which otherwise forces table creation via
+    SQLAlchemy metadata (through its `db`/`engine` dependency) before this
+    module's tests get a chance to run `alembic upgrade head` against a
+    genuinely blank schema, regardless of test collection order.
+    """
+    yield
+
+
+@pytest.fixture
 async def migrated_engine():
-    """Apply all Alembic migrations to the test DB and return an engine."""
+    """Apply all Alembic migrations to the test DB and return an engine.
+
+    Function-scoped, not module-scoped: pytest-asyncio (asyncio_mode=auto,
+    no configured loop scope) gives each test function its own event loop,
+    and asyncpg connections can't be reused across loops — a module-scoped
+    engine shared across tests raised "Event loop is closed" on the second
+    test to touch it. Re-running the migration per test is fast (<1s).
+    """
     import subprocess
 
     # Pass the async URL through: alembic/env.py imports backend.models (which

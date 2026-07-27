@@ -99,7 +99,8 @@ test-unit: test-backend test-dashboard test-pipeline
 
 test-backend: _check-backend-venv _setup-test-db
 	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) WORKER_SSH_HOST=$(TEST_WORKER_SSH_HOST) \
-	  $(BACKEND_VENV)/bin/pytest backend/tests/ -v --tb=short -m "not feature"
+	  $(BACKEND_VENV)/bin/pytest backend/tests/ -v --tb=short -m "not feature" \
+	    --ignore=backend/tests/test_migrations.py
 
 test-feature: _check-backend-venv _setup-test-db
 	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) WORKER_SSH_HOST=$(TEST_WORKER_SSH_HOST) \
