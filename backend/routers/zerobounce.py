@@ -13,6 +13,7 @@ from ..database import get_db, AsyncSessionLocal
 from ..models import ZeroBounceJob
 from ..schemas.zerobounce import ZeroBounceJobResponse
 from ..services import zerobounce_runner
+from ..utils.paths import assert_within
 
 DATA_DIR = Path("/data")
 router = APIRouter(prefix="/zerobounce", tags=["zerobounce"])

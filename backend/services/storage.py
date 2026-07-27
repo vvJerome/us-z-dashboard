@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
+from ..utils.paths import assert_within
+
 
 class StorageService:
     def __init__(self, data_dir: Path) -> None:
