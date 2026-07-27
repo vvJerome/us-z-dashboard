@@ -13,11 +13,15 @@ import { fetchJobDownload } from "../api/jobs";
 describe("DownloadButton", () => {
   it("renders a Download button", () => {
     renderWithQuery(<DownloadButton jobId="job-1" filename="records.jsonl" />);
-    expect(screen.getByRole("button", { name: /download/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /download/i }),
+    ).toBeInTheDocument();
   });
 
   it("calls the download API with the correct job ID", async () => {
-    vi.mocked(fetchJobDownload).mockResolvedValue({ url: "/api/jobs/job-1/file" });
+    vi.mocked(fetchJobDownload).mockResolvedValue({
+      url: "/api/jobs/job-1/file",
+    });
     renderWithQuery(<DownloadButton jobId="job-1" filename="records.jsonl" />);
     await userEvent.click(screen.getByRole("button", { name: /download/i }));
     await waitFor(() => expect(fetchJobDownload).toHaveBeenCalledWith("job-1"));
@@ -27,15 +31,21 @@ describe("DownloadButton", () => {
     vi.mocked(fetchJobDownload).mockImplementation(() => new Promise(() => {}));
     renderWithQuery(<DownloadButton jobId="job-1" filename="records.jsonl" />);
     await userEvent.click(screen.getByRole("button", { name: /download/i }));
-    expect(await screen.findByRole("button", { name: /downloading/i })).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: /downloading/i }),
+    ).toBeDisabled();
   });
 
   it("returns to idle state after successful download", async () => {
-    vi.mocked(fetchJobDownload).mockResolvedValue({ url: "/api/jobs/job-1/file" });
+    vi.mocked(fetchJobDownload).mockResolvedValue({
+      url: "/api/jobs/job-1/file",
+    });
     renderWithQuery(<DownloadButton jobId="job-1" filename="records.jsonl" />);
     await userEvent.click(screen.getByRole("button", { name: /download/i }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /download/i })).not.toBeDisabled(),
+      expect(
+        screen.getByRole("button", { name: /download/i }),
+      ).not.toBeDisabled(),
     );
   });
 

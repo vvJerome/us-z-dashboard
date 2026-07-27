@@ -4,6 +4,7 @@ Revision ID: 004
 Revises: 003
 Create Date: 2026-06-02
 """
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -25,7 +26,12 @@ def upgrade() -> None:
         sa.Column("processed_count", sa.Integer(), nullable=True),
         sa.Column("output_file_key", sa.String(500), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),

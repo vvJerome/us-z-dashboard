@@ -31,9 +31,7 @@ describe("StatusBadge", () => {
     const { container: running } = render(<StatusBadge status="RUNNING" />);
     expect(running.firstChild).toHaveClass("animate-pulse");
 
-    const { container: completed } = render(
-      <StatusBadge status="COMPLETED" />,
-    );
+    const { container: completed } = render(<StatusBadge status="COMPLETED" />);
     expect(completed.firstChild).not.toHaveClass("animate-pulse");
   });
 

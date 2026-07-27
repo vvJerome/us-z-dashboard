@@ -89,7 +89,10 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
-            <Label htmlFor="new-job-file" className="mb-1 block text-muted-foreground">
+            <Label
+              htmlFor="new-job-file"
+              className="mb-1 block text-muted-foreground"
+            >
               Input file
             </Label>
             <input
@@ -112,7 +115,10 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
 
           {vpsList && vpsList.length > 0 && (
             <div>
-              <Label htmlFor="new-job-vps" className="mb-1 block text-muted-foreground">
+              <Label
+                htmlFor="new-job-vps"
+                className="mb-1 block text-muted-foreground"
+              >
                 Run on VPS
               </Label>
               <select

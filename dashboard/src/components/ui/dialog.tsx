@@ -63,10 +63,7 @@ const DialogFooter = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn("flex justify-end gap-3", className)}
-    {...props}
-  />
+  <div className={cn("flex justify-end gap-3", className)} {...props} />
 );
 DialogFooter.displayName = "DialogFooter";
 

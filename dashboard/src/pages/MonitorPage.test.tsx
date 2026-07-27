@@ -40,7 +40,9 @@ function renderAt(jobId: string) {
   );
 }
 
-function makeMetrics(overrides: Partial<MetricsResponse> = {}): MetricsResponse {
+function makeMetrics(
+  overrides: Partial<MetricsResponse> = {},
+): MetricsResponse {
   return {
     run_id: "run_123",
     as_of: "2026-05-15T12:00:00",
@@ -53,9 +55,17 @@ function makeMetrics(overrides: Partial<MetricsResponse> = {}): MetricsResponse 
       racknerd: { error_pct: 10, total: 5, valid: 4, error: 1 },
       zuhal: { error_pct: 0, total: 2, valid: 2 },
     },
-    discovery: { dns: 3, serper: 2, failed: 1, total_input: 6, hit_rate_pct: 83.3 },
+    discovery: {
+      dns: 3,
+      serper: 2,
+      failed: 1,
+      total_input: 6,
+      hit_rate_pct: 83.3,
+    },
     cost: { spent_usd: 1.2345, ceiling_usd: 10, pct: 12.3 },
-    cost_breakdown: { services: [{ name: "serper", calls: 100, cost_usd: 0.1 }] },
+    cost_breakdown: {
+      services: [{ name: "serper", calls: 100, cost_usd: 0.1 }],
+    },
     run_history: [
       {
         hour: "2026-05-15T12:00",
@@ -118,7 +128,9 @@ describe("MonitorPage", () => {
     expect(screen.getByText("State machine")).toBeInTheDocument();
     expect(screen.getByText(/Throughput \(last 60 min\)/)).toBeInTheDocument();
     expect(screen.getByText("Cost")).toBeInTheDocument();
-    expect(screen.getByText("Backend verdicts (cumulative)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Backend verdicts (cumulative)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Discovery (cumulative)")).toBeInTheDocument();
     expect(screen.getByText("Recent validations")).toBeInTheDocument();
     expect(screen.getByText("Top errors")).toBeInTheDocument();

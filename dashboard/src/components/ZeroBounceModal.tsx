@@ -69,7 +69,10 @@ export function ZeroBounceModal({ onClose }: ZeroBounceModalProps) {
           </div>
 
           <div>
-            <Label htmlFor="zb-email-col" className="mb-1 block text-muted-foreground">
+            <Label
+              htmlFor="zb-email-col"
+              className="mb-1 block text-muted-foreground"
+            >
               Email column name
             </Label>
             <Input

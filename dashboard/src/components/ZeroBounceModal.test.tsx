@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ZeroBounceModal } from "./ZeroBounceModal";
 
 vi.mock("../api/zerobounce", () => ({
-  createZeroBounceJob: vi.fn().mockResolvedValue({ id: "zb-1", status: "QUEUED" }),
+  createZeroBounceJob: vi
+    .fn()
+    .mockResolvedValue({ id: "zb-1", status: "QUEUED" }),
   fetchZeroBounceJobs: vi.fn().mockResolvedValue([]),
 }));
 
@@ -92,6 +94,8 @@ describe("ZeroBounceModal", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /run zerobounce/i }),
     );
-    expect(await screen.findByText(/not enough zerobounce credits/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/not enough zerobounce credits/i),
+    ).toBeInTheDocument();
   });
 });

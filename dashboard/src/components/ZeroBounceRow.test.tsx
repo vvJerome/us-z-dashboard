@@ -31,7 +31,11 @@ describe("ZeroBounceRow", () => {
   it("shows progress while RUNNING", () => {
     render(
       <ZeroBounceRow
-        job={makeJob({ status: "RUNNING", email_count: 100, processed_count: 40 })}
+        job={makeJob({
+          status: "RUNNING",
+          email_count: 100,
+          processed_count: 40,
+        })}
       />,
     );
     expect(screen.getByText(/40 \/ 100 \(40%\)/)).toBeInTheDocument();

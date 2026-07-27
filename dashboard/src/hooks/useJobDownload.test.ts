@@ -28,7 +28,9 @@ describe("useJobDownload", () => {
 
   it("resets to loading=false and error=null after successful fetch", async () => {
     // Suppress the a.click() DOM side-effect — untestable in jsdom
-    vi.mocked(fetchJobDownload).mockResolvedValue({ url: "/api/jobs/job-1/file" });
+    vi.mocked(fetchJobDownload).mockResolvedValue({
+      url: "/api/jobs/job-1/file",
+    });
 
     const { result } = renderHook(() => useJobDownload());
     await act(() => result.current.download("job-1", "records.jsonl"));
@@ -48,7 +50,9 @@ describe("useJobDownload", () => {
   });
 
   it("calls fetchJobDownload with the correct job ID", async () => {
-    vi.mocked(fetchJobDownload).mockResolvedValue({ url: "/api/jobs/job-2/file" });
+    vi.mocked(fetchJobDownload).mockResolvedValue({
+      url: "/api/jobs/job-2/file",
+    });
     const { result } = renderHook(() => useJobDownload());
 
     await act(() => result.current.download("job-2", "output.csv"));
