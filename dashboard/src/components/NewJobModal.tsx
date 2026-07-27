@@ -70,8 +70,12 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
-    await create.mutateAsync({ file, config, vpsId });
-    onClose();
+    try {
+      await create.mutateAsync({ file, config, vpsId });
+      onClose();
+    } catch {
+      // create.isError / create.error already drive the error message below.
+    }
   }
 
   const submitDisabled = !file || create.isPending;

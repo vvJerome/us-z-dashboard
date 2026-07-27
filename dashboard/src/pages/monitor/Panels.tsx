@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
   RunHistoryChart,
@@ -60,14 +61,12 @@ export function StatePanel({ data }: { data: MetricsResponse }) {
       {sectionTitle("State machine")}
       <div className="grid grid-cols-2 gap-y-2 font-mono">
         {STATE_ORDER.map(([s, cls]) => (
-          <>
-            <div key={`l-${s}`} className="text-sm text-slate-400">
-              {s}
-            </div>
-            <div key={`v-${s}`} className={`text-right font-semibold ${cls}`}>
+          <Fragment key={s}>
+            <div className="text-sm text-slate-400">{s}</div>
+            <div className={`text-right font-semibold ${cls}`}>
               {fmt(data.states[s] ?? 0)}
             </div>
-          </>
+          </Fragment>
         ))}
       </div>
       <div className="mt-3 flex justify-between border-t border-slate-700 pt-3 text-xs text-slate-400">

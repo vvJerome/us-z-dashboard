@@ -18,6 +18,7 @@ node_modules/
 dist/
 .vite/
 *.tsbuildinfo
+coverage/
 
 # Environment — never commit secrets
 .env

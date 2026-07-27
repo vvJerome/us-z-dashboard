@@ -23,8 +23,12 @@ export function ZeroBounceModal({ onClose }: ZeroBounceModalProps) {
 
   async function handleSubmit() {
     if (!file) return;
-    await create.mutateAsync({ file, emailCol });
-    onClose();
+    try {
+      await create.mutateAsync({ file, emailCol });
+      onClose();
+    } catch {
+      // create.isError / create.error already drive the error message below.
+    }
   }
 
   return (
