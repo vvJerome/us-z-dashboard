@@ -34,7 +34,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install backend dependencies
-        run: pip install -r backend/requirements-test.txt ruff
+        # ruff pinned: an unpinned install picks up whatever is latest at CI
+        # run time, and a new default rule set can flag pre-existing files
+        # this PR never touched (verified: 0.15.13 is clean, 0.16.0 is not).
+        run: pip install -r backend/requirements-test.txt ruff==0.15.13
 
       - name: ruff check
         run: ruff check backend/
