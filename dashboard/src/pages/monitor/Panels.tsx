@@ -1,3 +1,4 @@
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
   RunHistoryChart,
   ThroughputChart,
@@ -43,17 +44,14 @@ function Pill({ v }: { v: string | null | undefined }) {
 
 function card(children: React.ReactNode, extraCls = "") {
   return (
-    <section
-      className={`rounded-xl p-4 ${extraCls}`}
-      style={{ background: "#111a33", border: "1px solid #1f2a48" }}
-    >
-      {children}
-    </section>
+    <Card className={extraCls}>
+      <CardContent className="p-4">{children}</CardContent>
+    </Card>
   );
 }
 
 function sectionTitle(t: string) {
-  return <h2 className="mb-3 text-sm font-semibold text-slate-300">{t}</h2>;
+  return <CardTitle className="mb-3 text-slate-300">{t}</CardTitle>;
 }
 
 export function StatePanel({ data }: { data: MetricsResponse }) {

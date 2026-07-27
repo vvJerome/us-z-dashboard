@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useJobs } from "../hooks/useJobs";
 import { useVps } from "../hooks/useVps";
 import { useZeroBounceJobs } from "../hooks/useZeroBounce";
@@ -46,35 +47,35 @@ export function JobList() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-100">Jobs</h1>
+        <h1 className="text-xl font-semibold text-foreground">Jobs</h1>
         <div className="flex items-center gap-3">
           {slotsExhausted && (
-            <span className="text-sm text-yellow-400">
+            <span className="text-sm text-amber-400">
               {runningCount}/{MAX_CONCURRENT} slots in use
             </span>
           )}
-          <button
+          <Button
             onClick={() => setShowZbModal(true)}
-            className="rounded bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-500"
+            className="bg-purple-600 text-white hover:bg-purple-500"
           >
             Run ZeroBounce
-          </button>
-          <button
-            onClick={() => setShowModal(true)}
-            disabled={slotsExhausted}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          </Button>
+          <Button onClick={() => setShowModal(true)} disabled={slotsExhausted}>
             Run scraper
-          </button>
+          </Button>
         </div>
       </div>
 
-      {isLoading && <p className="text-sm text-gray-500">Loading jobs…</p>}
+      {isLoading && (
+        <p className="text-sm text-muted-foreground">Loading jobs…</p>
+      )}
       {isError && (
-        <p className="text-sm text-red-400">Failed to load jobs. Retrying…</p>
+        <p className="text-sm text-destructive">
+          Failed to load jobs. Retrying…
+        </p>
       )}
       {!isLoading && combined.length === 0 && (
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           No jobs yet. Run your first scraper above.
         </p>
       )}

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useJobLogs } from "../hooks/useJobLogs";
 import type { JobStatus } from "../types/job";
 
@@ -16,21 +17,21 @@ export function LogViewer({ jobId, status }: LogViewerProps) {
   }, [data?.lines]);
 
   if (isLoading) {
-    return <p className="text-xs text-gray-500">Loading logs…</p>;
+    return <p className="text-xs text-muted-foreground">Loading logs…</p>;
   }
 
   const lines = data?.lines ?? [];
 
   return (
-    <div className="mt-2 max-h-64 overflow-y-auto rounded bg-gray-950 p-3">
+    <ScrollArea className="mt-2 max-h-64 rounded-md bg-background/60 p-3">
       {lines.length === 0 ? (
-        <p className="text-xs text-gray-600">No logs yet.</p>
+        <p className="text-xs text-muted-foreground">No logs yet.</p>
       ) : (
-        <pre className="whitespace-pre-wrap break-all font-mono text-xs text-gray-300">
+        <pre className="whitespace-pre-wrap break-all font-mono text-xs text-foreground/80">
           {lines.join("\n")}
         </pre>
       )}
       <div ref={bottomRef} />
-    </div>
+    </ScrollArea>
   );
 }
