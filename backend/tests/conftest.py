@@ -132,10 +132,13 @@ async def clean_jobs(db: AsyncSession) -> None:
 
 @pytest_asyncio.fixture
 async def client(db: AsyncSession, tmp_path):
+    from backend.routers.zerobounce import _get_data_dir
+
     storage = StorageService(tmp_path)
 
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[_get_storage] = lambda: storage
+    app.dependency_overrides[_get_data_dir] = lambda: tmp_path
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
