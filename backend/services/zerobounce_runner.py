@@ -54,7 +54,9 @@ async def _validate_one(
                 resp.raise_for_status()
                 data = await resp.json()
         except Exception as exc:
-            logger.warning("ZeroBounce error for %s: %s", email, exc)
+            # Log the exception type only — aiohttp.ClientResponseError's message
+            # embeds the full request URL (including api_key) via request_info.
+            logger.warning("ZeroBounce error for %s: %s", email, type(exc).__name__)
             return {col: "error" for col in ZB_OUTPUT_COLS}
 
     return {
@@ -80,6 +82,7 @@ async def run_zerobounce(
     async def _update(status: str, **kwargs: Any) -> None:
         async with session_factory() as db:
             from sqlalchemy import select
+
             result = await db.execute(
                 select(ZeroBounceJob).where(ZeroBounceJob.id == job_id)
             )
