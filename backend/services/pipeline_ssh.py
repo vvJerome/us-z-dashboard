@@ -232,11 +232,8 @@ def _query_local(db_path: str) -> dict[str, Any]:
 async def _run_query_ssh(
     conn: asyncssh.SSHClientConnection, db_path: str, sql: str
 ) -> list[dict]:
-    escaped = sql.replace('"', '\\"')
-    result = await conn.run(
-        f'/usr/bin/sqlite3 -json "{db_path}" "{escaped}"',
-        timeout=10,
-    )
+    command = f"/usr/bin/sqlite3 -json {shlex.quote(db_path)} {shlex.quote(sql)}"
+    result = await conn.run(command, timeout=10)
     if result.exit_status == 127:
         raise RuntimeError(
             "sqlite3 CLI not found on VPS — install with: apt-get install sqlite3"
