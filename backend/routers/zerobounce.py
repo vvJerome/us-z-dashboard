@@ -34,6 +34,10 @@ async def create_zerobounce_job(  # TODO: add auth
     input_dir = DATA_DIR / "zerobounce" / str(job_id)
     input_dir.mkdir(parents=True, exist_ok=True)
     input_path = input_dir / filename
+    try:
+        assert_within(input_path, DATA_DIR)
+    except ValueError:
+        raise HTTPException(400, "Invalid filename") from None
 
     content = await file.read()
     if len(content) > 100 * 1024 * 1024:
@@ -81,9 +85,7 @@ async def get_zerobounce_job(  # TODO: add auth
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> ZeroBounceJobResponse:
-    result = await db.execute(
-        select(ZeroBounceJob).where(ZeroBounceJob.id == job_id)
-    )
+    result = await db.execute(select(ZeroBounceJob).where(ZeroBounceJob.id == job_id))
     job = result.scalar_one_or_none()
     if job is None:
         raise HTTPException(404, f"ZeroBounce job {job_id} not found")
@@ -95,9 +97,7 @@ async def download_zerobounce_result(  # TODO: add auth
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> FileResponse:
-    result = await db.execute(
-        select(ZeroBounceJob).where(ZeroBounceJob.id == job_id)
-    )
+    result = await db.execute(select(ZeroBounceJob).where(ZeroBounceJob.id == job_id))
     job = result.scalar_one_or_none()
     if job is None:
         raise HTTPException(404, "Job not found")
