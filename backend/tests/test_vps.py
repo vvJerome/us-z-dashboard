@@ -9,22 +9,46 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models import Job, VpsInstance
 
 
-@pytest.mark.parametrize(
-    "data_dir",
-    [
-        '/data"; rm -rf / #',
-        "/data/../../etc",
-        "relative/not/absolute",
-        "/data$(whoami)",
-        "/data`id`",
-    ],
-)
+_UNSAFE_PATHS = [
+    '/data"; rm -rf / #',
+    "/data/../../etc",
+    "relative/not/absolute",
+    "/data$(whoami)",
+    "/data`id`",
+]
+
+
+@pytest.mark.parametrize("data_dir", _UNSAFE_PATHS)
 async def test_create_vps_rejects_unsafe_data_dir(
     client: AsyncClient, data_dir: str
 ) -> None:
     resp = await client.post(
         "/vps",
-        json={"name": "evil", "is_local": True, "data_dir": data_dir},
+        json={
+            "name": "evil",
+            "is_local": True,
+            "data_dir": data_dir,
+            "repo_dir": "/home/devonly/projects/universal-scraper-v3",
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("repo_dir", _UNSAFE_PATHS)
+async def test_create_vps_rejects_unsafe_repo_dir(
+    client: AsyncClient, repo_dir: str
+) -> None:
+    resp = await client.post(
+        "/vps",
+        json={"name": "evil", "is_local": True, "repo_dir": repo_dir},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_vps_requires_repo_dir(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/vps",
+        json={"name": "worker-2", "is_local": True, "data_dir": "/data/worker2"},
     )
     assert resp.status_code == 422
 
@@ -32,10 +56,16 @@ async def test_create_vps_rejects_unsafe_data_dir(
 async def test_create_vps_accepts_safe_data_dir(client: AsyncClient) -> None:
     resp = await client.post(
         "/vps",
-        json={"name": "worker-2", "is_local": True, "data_dir": "/data/worker2"},
+        json={
+            "name": "worker-2",
+            "is_local": True,
+            "data_dir": "/data/worker2",
+            "repo_dir": "/home/devonly/projects/universal-scraper-v3-2",
+        },
     )
     assert resp.status_code == 201
     assert resp.json()["data_dir"] == "/data/worker2"
+    assert resp.json()["repo_dir"] == "/home/devonly/projects/universal-scraper-v3-2"
 
 
 async def test_list_vps_returns_only_active(

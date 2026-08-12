@@ -26,9 +26,9 @@ class WorkerClient:
     from that sentinel plus the presence of the result CSV and tmux liveness.
     """
 
-    def __init__(self, vps: "VpsInstance", repo_dir: str) -> None:
+    def __init__(self, vps: "VpsInstance") -> None:
         self._vps = vps
-        self._repo_dir = repo_dir
+        self._repo_dir = vps.repo_dir
         self._data_dir = vps.data_dir
 
     async def trigger(

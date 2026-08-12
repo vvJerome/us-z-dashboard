@@ -38,6 +38,7 @@ async def create_vps(
         ssh_port=body.ssh_port,
         ssh_key_path=body.ssh_key_path,
         data_dir=body.data_dir,
+        repo_dir=body.repo_dir,
     )
     db.add(vps)
     await db.commit()

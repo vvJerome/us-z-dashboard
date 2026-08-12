@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update
@@ -26,9 +27,7 @@ _promote_lock = asyncio.Lock()
 
 
 def _worker_for(vps: VpsInstance) -> WorkerClient:
-    from ..settings import get_settings
-
-    return WorkerClient(vps, get_settings().worker_repo_dir)
+    return WorkerClient(vps)
 
 
 async def _vps_of(db: AsyncSession, job: Job) -> VpsInstance | None:
@@ -38,14 +37,22 @@ async def _vps_of(db: AsyncSession, job: Job) -> VpsInstance | None:
     return result.scalar_one_or_none()
 
 
+async def _busy_vps_ids(db: AsyncSession) -> set[uuid.UUID]:
+    """vps_ids that currently have a RUNNING job — each VPS runs at most one."""
+    result = await db.execute(select(Job.vps_id).where(Job.status == "RUNNING"))
+    return {row[0] for row in result.all() if row[0] is not None}
+
+
 async def sync_running_job(db: AsyncSession) -> None:
-    """Refresh the status of the currently RUNNING job from the worker."""
+    """Refresh the status of every RUNNING job (one per VPS) from its worker."""
     result = await db.execute(
         select(Job).where(Job.status == "RUNNING", Job.worker_session.is_not(None))
     )
-    job = result.scalar_one_or_none()
-    if job is None:
-        return
+    for job in result.scalars().all():
+        await _sync_one(db, job)
+
+
+async def _sync_one(db: AsyncSession, job: Job) -> None:
     vps = await _vps_of(db, job)
     if vps is None:
         return
@@ -72,54 +79,60 @@ async def sync_running_job(db: AsyncSession) -> None:
 
 
 async def try_promote(db: AsyncSession) -> None:
-    """If no job is RUNNING, dispatch the oldest QUEUED job to the worker."""
+    """Dispatch the oldest QUEUED job on every active VPS that isn't already RUNNING one."""
     async with _promote_lock:
-        running = await db.execute(
-            select(Job.id).where(Job.status == "RUNNING").limit(1)
-        )
-        if running.first() is not None:
-            return
+        busy = await _busy_vps_ids(db)
         result = await db.execute(
-            select(Job).where(Job.status == "QUEUED").order_by(Job.created_at).limit(1)
+            select(VpsInstance).where(VpsInstance.is_active == True)  # noqa: E712
         )
-        job = result.scalar_one_or_none()
-        if job is None:
-            return
-        vps = await _vps_of(db, job)
-        if vps is None:
-            return
+        for vps in result.scalars().all():
+            if vps.id in busy:
+                continue
+            await _promote_one(db, vps)
 
-        worker = _worker_for(vps)
-        try:
-            if await worker.has_active_session():
-                return  # worker busy with an out-of-band run — retry next cycle
-            config = JobConfig(**job.config)
-            session = await worker.trigger(job.id, job.input_file_key, config)
-        except Exception as exc:
-            logger.error("Failed to dispatch job %s: %s", job.id, exc)
-            await db.execute(
-                update(Job)
-                .where(Job.id == job.id)
-                .values(
-                    status="FAILED",
-                    finished_at=datetime.now(timezone.utc),
-                    error_message=f"Dispatch failed: {exc}",
-                )
-            )
-            await db.commit()
-            return
 
+async def _promote_one(db: AsyncSession, vps: VpsInstance) -> None:
+    result = await db.execute(
+        select(Job)
+        .where(Job.status == "QUEUED", Job.vps_id == vps.id)
+        .order_by(Job.created_at)
+        .limit(1)
+    )
+    job = result.scalar_one_or_none()
+    if job is None:
+        return
+
+    worker = _worker_for(vps)
+    try:
+        if await worker.has_active_session():
+            return  # worker busy with an out-of-band run — retry next cycle
+        config = JobConfig(**job.config)
+        session = await worker.trigger(job.id, job.input_file_key, config)
+    except Exception as exc:
+        logger.error("Failed to dispatch job %s: %s", job.id, exc)
         await db.execute(
             update(Job)
             .where(Job.id == job.id)
             .values(
-                status="RUNNING",
-                worker_session=session,
-                started_at=datetime.now(timezone.utc),
+                status="FAILED",
+                finished_at=datetime.now(timezone.utc),
+                error_message=f"Dispatch failed: {exc}",
             )
         )
         await db.commit()
-        await db.refresh(job)
+        return
+
+    await db.execute(
+        update(Job)
+        .where(Job.id == job.id)
+        .values(
+            status="RUNNING",
+            worker_session=session,
+            started_at=datetime.now(timezone.utc),
+        )
+    )
+    await db.commit()
+    await db.refresh(job)
 
 
 async def push_input(vps: VpsInstance, job_id, file_key: str, filename: str) -> None:

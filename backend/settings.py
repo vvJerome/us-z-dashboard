@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     database_url: str
     data_dir: Path = Path("/data")
 
-    # Worker VPS (universal-scraper-v3) — the only execution target.
+    # Worker VPS #1 (universal-scraper-v3) — seeds the "worker-v3" VpsInstance row
+    # on first boot only. Additional worker VPS are registered via POST /vps, not
+    # settings — see backend/main.py::_seed_worker_vps.
     worker_ssh_host: str
     worker_ssh_user: str = "devonly"
     worker_ssh_port: int = 22

@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-# Absolute path, safe charset only — this value is later interpolated into a
-# remote shell command (backend/services/pipeline_ssh.py) as the sqlite3 file
-# argument, so it must never contain shell metacharacters or ".." traversal.
-_SAFE_DATA_DIR_RE = re.compile(r"^/[A-Za-z0-9_./-]*$")
+from ..utils.paths import validate_safe_absolute_path
 
 
 class VpsCreate(BaseModel):
@@ -20,13 +16,12 @@ class VpsCreate(BaseModel):
     ssh_port: int = 22
     ssh_key_path: str | None = None
     data_dir: str = "/data"
+    repo_dir: str
 
-    @field_validator("data_dir")
+    @field_validator("data_dir", "repo_dir")
     @classmethod
-    def _validate_data_dir(cls, v: str) -> str:
-        if ".." in v or not _SAFE_DATA_DIR_RE.match(v):
-            raise ValueError("data_dir must be a safe absolute path")
-        return v
+    def _validate_safe_path(cls, v: str) -> str:
+        return validate_safe_absolute_path(v)
 
 
 class VpsResponse(BaseModel):
@@ -39,5 +34,6 @@ class VpsResponse(BaseModel):
     ssh_user: str
     ssh_port: int
     data_dir: str
+    repo_dir: str
     is_active: bool
     created_at: datetime

@@ -27,6 +27,9 @@ PLACEHOLDER_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 # SFTP push/pull and read output straight from local tmp_path storage.
 TEST_VPS_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
+# A second VPS, for tests exercising per-VPS concurrency (two jobs, two boxes).
+TEST_VPS_ID_2 = uuid.UUID("00000000-0000-0000-0000-000000000003")
+
 
 class WorkerController:
     """Drives FakeWorker behavior for a single test."""
@@ -47,7 +50,7 @@ _worker_controller = WorkerController()
 class FakeWorker:
     """Stand-in for WorkerClient — no real SSH. Reads the shared controller."""
 
-    def __init__(self, vps, repo_dir: str) -> None:
+    def __init__(self, vps) -> None:
         self._vps = vps
 
     async def trigger(self, job_id, input_file_key, config) -> str:
@@ -113,6 +116,21 @@ async def db(engine) -> AsyncSession:
                     id=TEST_VPS_ID,
                     name="Test Local VPS",
                     is_local=True,
+                )
+            )
+            await session.commit()
+
+        # A second VPS for per-VPS concurrency tests
+        result = await session.execute(
+            select(VpsInstance).where(VpsInstance.id == TEST_VPS_ID_2)
+        )
+        if result.scalar_one_or_none() is None:
+            session.add(
+                VpsInstance(
+                    id=TEST_VPS_ID_2,
+                    name="Test Local VPS 2",
+                    is_local=True,
+                    repo_dir="/home/devonly/projects/universal-scraper-v3-2",
                 )
             )
             await session.commit()

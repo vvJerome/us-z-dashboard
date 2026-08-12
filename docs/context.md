@@ -11,7 +11,7 @@ This document describes the full architecture for a containerized data processin
 | Concern | Decision |
 |---|---|
 | Hosting | Hetzner VPS (single server) |
-| Concurrent jobs | One at a time on worker-v3; further submissions queued by the backend |
+| Concurrent jobs | One RUNNING job per worker VPS; further submissions for that VPS queued by the backend (see [ADR-008](../.claude/directions/adr-008-per-vps-concurrency.md)) |
 | Job duration | Hours to days |
 | Users | 2–5 team members, login required |
 | Job input | JSONL/CSV file upload + config toggles |
@@ -23,8 +23,12 @@ This document describes the full architecture for a containerized data processin
 > **Note (2026-07-16):** Sections below that describe Kestra, per-job Docker
 > containers, and the `kestra/flows/run-scraper.yml` flow are **historical** —
 > ADR-001/ADR-004 were superseded by ADR-007. The backend now triggers the
-> pipeline directly over SSH + tmux and queues jobs in-process (concurrency 1).
+> pipeline directly over SSH + tmux and queues jobs in-process.
 > `services/kestra.py` was replaced by `services/worker.py` + `services/job_queue.py`.
+>
+> **Note (2026-08-11):** Concurrency is no longer a single global slot — it's
+> one RUNNING job per worker VPS, each with its own independent SMTP fleet.
+> See [ADR-008](../.claude/directions/adr-008-per-vps-concurrency.md).
 
 ---
 

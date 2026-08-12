@@ -180,7 +180,7 @@ async def cancel_job(
     if job.worker_session:
         vps = await _load_vps(db, job)
         if vps:
-            worker = WorkerClient(vps, get_settings().worker_repo_dir)
+            worker = WorkerClient(vps)
             await worker.cancel(job.id)
     await db.execute(
         update(Job)

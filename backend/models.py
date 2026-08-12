@@ -39,6 +39,9 @@ class VpsInstance(Base):
     ssh_port: Mapped[int] = mapped_column(Integer, nullable=False, default=22)
     ssh_key_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     data_dir: Mapped[str] = mapped_column(Text, nullable=False, default="/data")
+    repo_dir: Mapped[str] = mapped_column(
+        Text, nullable=False, default="/home/devonly/projects/universal-scraper-v3"
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

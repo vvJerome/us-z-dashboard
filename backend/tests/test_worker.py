@@ -9,13 +9,14 @@ from backend.services import worker as worker_mod
 from backend.services.worker import WorkerClient
 
 
-def _vps() -> SimpleNamespace:
+def _vps(repo_dir: str = "/home/devonly/projects/universal-scraper-v3") -> SimpleNamespace:
     return SimpleNamespace(
         ssh_host="worker.example.com",
         ssh_user="devonly",
         ssh_port=22,
         ssh_key_path="/root/.ssh/id_worker_v3",
         data_dir="/home/devonly/data",
+        repo_dir=repo_dir,
     )
 
 
@@ -87,7 +88,7 @@ def test_map_status(token, expected_status, has_error) -> None:
 
 async def test_get_status_reads_sentinel(patched_connect) -> None:
     patched_connect["setup"](_FakeRun(stdout="DONE\n"))
-    client = WorkerClient(_vps(), "/home/devonly/projects/universal-scraper-v3")
+    client = WorkerClient(_vps())
     job_id = uuid.uuid4()
 
     status, error = await client.get_status(job_id)
@@ -103,7 +104,7 @@ async def test_get_status_reads_sentinel(patched_connect) -> None:
 
 async def test_trigger_launches_tmux_without_inline_secrets(patched_connect) -> None:
     patched_connect["setup"](_FakeRun(exit_status=0))
-    client = WorkerClient(_vps(), "/home/devonly/projects/universal-scraper-v3")
+    client = WorkerClient(_vps())
     job_id = uuid.uuid4()
     config = SimpleNamespace(
         enable_proxy=False,
@@ -130,7 +131,7 @@ async def test_trigger_launches_tmux_without_inline_secrets(patched_connect) -> 
 
 async def test_trigger_raises_on_nonzero_exit(patched_connect) -> None:
     patched_connect["setup"](_FakeRun(exit_status=1, stderr="boom"))
-    client = WorkerClient(_vps(), "/home/devonly/projects/universal-scraper-v3")
+    client = WorkerClient(_vps())
     config = SimpleNamespace(
         enable_proxy=False,
         skip_duplicates=True,
@@ -147,7 +148,7 @@ async def test_trigger_raises_on_nonzero_exit(patched_connect) -> None:
 
 async def test_cancel_kills_session(patched_connect) -> None:
     patched_connect["setup"](_FakeRun(exit_status=0))
-    client = WorkerClient(_vps(), "/repo")
+    client = WorkerClient(_vps(repo_dir="/repo"))
     job_id = uuid.uuid4()
 
     await client.cancel(job_id)
@@ -156,9 +157,9 @@ async def test_cancel_kills_session(patched_connect) -> None:
 
 async def test_has_active_session(patched_connect) -> None:
     patched_connect["setup"](_FakeRun(stdout="2\n"))
-    client = WorkerClient(_vps(), "/repo")
+    client = WorkerClient(_vps(repo_dir="/repo"))
     assert await client.has_active_session() is True
 
     patched_connect["setup"](_FakeRun(stdout="0\n"))
-    client = WorkerClient(_vps(), "/repo")
+    client = WorkerClient(_vps(repo_dir="/repo"))
     assert await client.has_active_session() is False
