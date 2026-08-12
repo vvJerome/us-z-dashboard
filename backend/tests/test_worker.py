@@ -9,7 +9,9 @@ from backend.services import worker as worker_mod
 from backend.services.worker import WorkerClient
 
 
-def _vps(repo_dir: str = "/home/devonly/projects/universal-scraper-v3") -> SimpleNamespace:
+def _vps(
+    repo_dir: str = "/home/devonly/projects/universal-scraper-v3",
+) -> SimpleNamespace:
     return SimpleNamespace(
         ssh_host="worker.example.com",
         ssh_user="devonly",

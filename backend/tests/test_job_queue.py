@@ -139,12 +139,8 @@ async def test_running_job_on_one_vps_does_not_block_another_vps(
 async def test_sync_running_job_updates_multiple_vps_at_once(
     db: AsyncSession, worker: WorkerController
 ) -> None:
-    running_a = await _add_job(
-        db, "RUNNING", session="job-a", vps_id=TEST_VPS_ID
-    )
-    running_b = await _add_job(
-        db, "RUNNING", session="job-b", vps_id=TEST_VPS_ID_2
-    )
+    running_a = await _add_job(db, "RUNNING", session="job-a", vps_id=TEST_VPS_ID)
+    running_b = await _add_job(db, "RUNNING", session="job-b", vps_id=TEST_VPS_ID_2)
     worker.status = ("COMPLETED", None)
 
     await job_queue.sync_running_job(db)
