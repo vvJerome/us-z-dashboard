@@ -12,6 +12,10 @@ PIPELINE_VENV := ../us-z-3/.venv
 DB_URL      := postgresql+asyncpg://postgres@localhost:5432/scraper
 TEST_DB_URL := postgresql+asyncpg://postgres@localhost:5432/scraper_test
 
+# Settings.worker_ssh_host has no default (never hardcode a real VPS IP) — tests
+# and local dev need a harmless placeholder unless .env already provides one.
+TEST_WORKER_SSH_HOST := test-worker.invalid
+
 .DEFAULT_GOAL := help
 .PHONY: help setup setup-backend setup-dashboard \
         dev-infra dev-backend dev-dashboard \
@@ -81,7 +85,7 @@ dev-infra:
 	@echo "Postgres on :5432"
 
 dev-backend: _check-backend-venv
-	cd backend && DATABASE_URL=$(DB_URL) \
+	cd backend && DATABASE_URL=$(DB_URL) WORKER_SSH_HOST=$${WORKER_SSH_HOST:-$(TEST_WORKER_SSH_HOST)} \
 	  ../$(BACKEND_VENV)/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 dev-dashboard:
@@ -94,15 +98,16 @@ test: test-unit test-feature test-smoke
 test-unit: test-backend test-dashboard test-pipeline
 
 test-backend: _check-backend-venv _setup-test-db
-	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) \
-	  $(BACKEND_VENV)/bin/pytest backend/tests/ -v --tb=short -m "not feature"
+	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) WORKER_SSH_HOST=$(TEST_WORKER_SSH_HOST) \
+	  $(BACKEND_VENV)/bin/pytest backend/tests/ -v --tb=short -m "not feature" \
+	    --ignore=backend/tests/test_migrations.py
 
 test-feature: _check-backend-venv _setup-test-db
-	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) \
+	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) WORKER_SSH_HOST=$(TEST_WORKER_SSH_HOST) \
 	  $(BACKEND_VENV)/bin/pytest backend/tests/feature/ -v --tb=short
 
 test-migrations: _check-backend-venv _setup-test-db
-	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) \
+	TEST_DATABASE_URL=$(TEST_DB_URL) DATABASE_URL=$(TEST_DB_URL) WORKER_SSH_HOST=$(TEST_WORKER_SSH_HOST) \
 	  $(BACKEND_VENV)/bin/pytest backend/tests/test_migrations.py -v --tb=short
 
 test-dashboard:

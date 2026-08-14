@@ -8,14 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models import Job
 from backend.services import job_queue
 
-from .conftest import PLACEHOLDER_USER_ID, TEST_VPS_ID, WorkerController
+from .conftest import PLACEHOLDER_USER_ID, TEST_VPS_ID, TEST_VPS_ID_2, WorkerController
 
 
-async def _add_job(db: AsyncSession, status: str, session: str | None = None) -> Job:
+async def _add_job(
+    db: AsyncSession,
+    status: str,
+    session: str | None = None,
+    vps_id: uuid.UUID = TEST_VPS_ID,
+) -> Job:
     job = Job(
         id=uuid.uuid4(),
         user_id=PLACEHOLDER_USER_ID,
-        vps_id=TEST_VPS_ID,
+        vps_id=vps_id,
         status=status,
         input_filename="in.jsonl",
         input_file_key=f"inputs/{uuid.uuid4()}/in.jsonl",
@@ -105,3 +110,40 @@ async def test_sync_running_job_records_failure(
     assert await _status(db, running.id) == "FAILED"
     result = await db.execute(select(Job.error_message).where(Job.id == running.id))
     assert result.scalar_one() == "pipeline exited with code 1"
+
+
+async def test_promote_dispatches_to_both_vps_in_one_call(
+    db: AsyncSession, worker: WorkerController
+) -> None:
+    """Two QUEUED jobs on two different VPS both promote in a single try_promote()."""
+    job_a = await _add_job(db, "QUEUED", vps_id=TEST_VPS_ID)
+    job_b = await _add_job(db, "QUEUED", vps_id=TEST_VPS_ID_2)
+
+    await job_queue.try_promote(db)
+
+    assert await _status(db, job_a.id) == "RUNNING"
+    assert await _status(db, job_b.id) == "RUNNING"
+
+
+async def test_running_job_on_one_vps_does_not_block_another_vps(
+    db: AsyncSession, worker: WorkerController
+) -> None:
+    await _add_job(db, "RUNNING", session="job-busy", vps_id=TEST_VPS_ID)
+    queued_on_other_vps = await _add_job(db, "QUEUED", vps_id=TEST_VPS_ID_2)
+
+    await job_queue.try_promote(db)
+
+    assert await _status(db, queued_on_other_vps.id) == "RUNNING"
+
+
+async def test_sync_running_job_updates_multiple_vps_at_once(
+    db: AsyncSession, worker: WorkerController
+) -> None:
+    running_a = await _add_job(db, "RUNNING", session="job-a", vps_id=TEST_VPS_ID)
+    running_b = await _add_job(db, "RUNNING", session="job-b", vps_id=TEST_VPS_ID_2)
+    worker.status = ("COMPLETED", None)
+
+    await job_queue.sync_running_job(db)
+
+    assert await _status(db, running_a.id) == "COMPLETED"
+    assert await _status(db, running_b.id) == "COMPLETED"

@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
+from ..utils.paths import assert_within
+
 
 class StorageService:
     def __init__(self, data_dir: Path) -> None:
@@ -25,8 +27,7 @@ class StorageService:
         """Write uploaded bytes to the data volume. Returns the file key."""
         path = self.input_path(job_id, filename)
         path.parent.mkdir(parents=True, exist_ok=True)
-        if ".." in str(path.relative_to(self._data_dir)):
-            raise ValueError(f"Invalid path: {filename}")
+        assert_within(path, self._data_dir)
         path.write_bytes(data)
         return self.input_file_key(job_id, filename)
 
@@ -41,4 +42,3 @@ class StorageService:
 
     def output_exists(self, job_id: uuid.UUID) -> bool:
         return self.output_path(job_id).exists()
-

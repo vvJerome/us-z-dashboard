@@ -34,6 +34,7 @@ async def _seed_worker_vps() -> None:
             ssh_port=settings.worker_ssh_port,
             ssh_key_path=settings.worker_ssh_key_path,
             data_dir=settings.worker_data_dir,
+            repo_dir=settings.worker_repo_dir,
             is_active=True,
         )
         db.add(worker)

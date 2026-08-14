@@ -24,7 +24,7 @@ Hard technology constraints for us-z-dashboard. Do not introduce alternatives wi
 - **Vite** — bundler and dev server. No Create React App, no webpack configs, no Next.js (this is a SPA, not an SSR app).
 - **TanStack Query v5** (`@tanstack/react-query`) — all server state, polling, and mutation handling. No SWR, no Redux for server state, no raw `useEffect` + `fetch` for data fetching.
 - **React Router v6** — client-side routing. No other router.
-- **Tailwind CSS** — all styling. No CSS-in-JS (styled-components, emotion), no CSS Modules, no component libraries (MUI, shadcn/ui, Chakra) without explicit team approval.
+- **Tailwind CSS** with **shadcn/ui** — approved 2026-07-27 as the standard component layer (`src/components/ui/`), built on Radix primitives + `class-variance-authority` + `cn()` (`src/lib/utils.ts`). No CSS-in-JS (styled-components, emotion), no CSS Modules, no other component library (MUI, Chakra, Ant) without a new ADR.
 
 ## Infrastructure
 

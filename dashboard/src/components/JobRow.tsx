@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useCancelJob } from "../hooks/useJobs";
 import type { Job } from "../types/job";
 import { DownloadButton } from "./DownloadButton";
@@ -24,24 +27,20 @@ export function JobRow({ job, vpsName }: JobRowProps) {
   const canCancel = job.status === "QUEUED" || job.status === "RUNNING";
 
   return (
-    <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-      <div
-        className="flex cursor-pointer items-start justify-between gap-4"
+    <Card>
+      <CardContent
+        className="flex cursor-pointer items-start justify-between gap-4 p-4"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             <StatusBadge status={job.status} />
-            <span className="truncate text-sm font-medium text-gray-200">
+            <span className="truncate text-sm font-medium text-foreground">
               {job.input_filename}
             </span>
-            {vpsName && (
-              <span className="shrink-0 rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-400">
-                {vpsName}
-              </span>
-            )}
+            {vpsName && <Badge variant="secondary">{vpsName}</Badge>}
           </div>
-          <div className="mt-1 flex gap-4 text-xs text-gray-500">
+          <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
             <span>Created {formatDate(job.created_at)}</span>
             {job.started_at && (
               <span>Started {formatDate(job.started_at)}</span>
@@ -51,7 +50,7 @@ export function JobRow({ job, vpsName }: JobRowProps) {
             )}
           </div>
           {job.error_message && (
-            <p className="mt-1 text-xs text-red-400">{job.error_message}</p>
+            <p className="mt-1 text-xs text-destructive">{job.error_message}</p>
           )}
         </div>
 
@@ -60,37 +59,45 @@ export function JobRow({ job, vpsName }: JobRowProps) {
             <DownloadButton jobId={job.id} filename={job.input_filename} />
           )}
           {(job.status === "RUNNING" || job.status === "COMPLETED") && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(`/jobs/${job.id}/monitor`);
               }}
-              className={`rounded border px-2 py-1 text-xs ${
+              className={
                 job.status === "RUNNING"
-                  ? "border-sky-700 text-sky-400 hover:bg-sky-900"
-                  : "border-slate-700 text-slate-400 hover:bg-slate-800"
-              }`}
+                  ? "border-sky-700 text-sky-400 hover:bg-sky-900 hover:text-sky-300"
+                  : undefined
+              }
             >
               {job.status === "RUNNING" ? "Live" : "Metrics"}
-            </button>
+            </Button>
           )}
           {canCancel && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 cancel.mutate(job.id);
               }}
               disabled={cancel.isPending}
-              className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:border-red-700 hover:text-red-400 disabled:opacity-50"
+              className="hover:border-destructive hover:text-destructive"
             >
               Cancel
-            </button>
+            </Button>
           )}
-          <span className="text-gray-600">{expanded ? "▲" : "▼"}</span>
+          <span className="text-muted-foreground">{expanded ? "▲" : "▼"}</span>
         </div>
-      </div>
+      </CardContent>
 
-      {expanded && <LogViewer jobId={job.id} status={job.status} />}
-    </div>
+      {expanded && (
+        <div className="px-4 pb-4">
+          <LogViewer jobId={job.id} status={job.status} />
+        </div>
+      )}
+    </Card>
   );
 }

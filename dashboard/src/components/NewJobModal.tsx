@@ -1,4 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useCreateJob } from "../hooks/useJobs";
 import { useVps } from "../hooks/useVps";
 import type { JobConfig } from "../types/job";
@@ -61,44 +70,44 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
-    await create.mutateAsync({ file, config, vpsId });
-    onClose();
+    try {
+      await create.mutateAsync({ file, config, vpsId });
+      onClose();
+    } catch {
+      // create.isError / create.error already drive the error message below.
+    }
   }
 
   const submitDisabled = !file || create.isPending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="w-full max-w-md rounded-xl border border-gray-800 bg-gray-900 p-6 shadow-xl">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-100">
-            New scraper job
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-300"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New scraper job</DialogTitle>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
-            <label className="mb-1 block text-sm text-gray-400">
+            <Label
+              htmlFor="new-job-file"
+              className="mb-1 block text-muted-foreground"
+            >
               Input file
-            </label>
+            </Label>
             <input
+              id="new-job-file"
               ref={fileRef}
               type="file"
               accept=".jsonl,.csv"
               onChange={handleFileChange}
-              className="w-full cursor-pointer rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-300 file:mr-3 file:rounded file:border-0 file:bg-gray-700 file:px-3 file:py-1 file:text-sm file:text-gray-200"
+              className="w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-3 file:py-1 file:text-sm file:text-secondary-foreground"
             />
             {fileError && (
-              <p className="mt-1 text-xs text-red-400">{fileError}</p>
+              <p className="mt-1 text-xs text-destructive">{fileError}</p>
             )}
             {file && (
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {file.name} — {(file.size / 1024 / 1024).toFixed(2)} MB
               </p>
             )}
@@ -106,13 +115,17 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
 
           {vpsList && vpsList.length > 0 && (
             <div>
-              <label className="mb-1 block text-sm text-gray-400">
+              <Label
+                htmlFor="new-job-vps"
+                className="mb-1 block text-muted-foreground"
+              >
                 Run on VPS
-              </label>
+              </Label>
               <select
+                id="new-job-vps"
                 value={vpsId ?? ""}
                 onChange={(e) => setVpsId(e.target.value || null)}
-                className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 {vpsList.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -125,7 +138,7 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
           )}
 
           <div className="flex flex-col gap-3">
-            <label className="text-sm text-gray-400">Options</label>
+            <Label className="text-muted-foreground">Options</Label>
             {(
               [
                 {
@@ -148,42 +161,36 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
                   type="checkbox"
                   checked={config[key]}
                   onChange={() => handleToggle(key)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-600 bg-gray-800 accent-blue-500"
+                  className="mt-0.5 h-4 w-4 rounded border-input bg-transparent accent-primary"
                 />
                 <span>
-                  <span className="text-sm text-gray-200">{label}</span>
-                  <span className="ml-2 text-xs text-gray-500">{desc}</span>
+                  <span className="text-sm text-foreground">{label}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {desc}
+                  </span>
                 </span>
               </label>
             ))}
           </div>
 
           {create.isError && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-destructive">
               {create.error instanceof Error
                 ? create.error.message
                 : "Submission failed"}
             </p>
           )}
 
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded px-4 py-2 text-sm text-gray-400 hover:text-gray-200"
-            >
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitDisabled}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" disabled={submitDisabled}>
               {create.isPending ? "Submitting…" : "Run scraper"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

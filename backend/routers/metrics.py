@@ -47,6 +47,8 @@ async def get_metrics(
             lambda: pipeline_ssh.fetch_metrics(vps, db_path),
         )
     except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=f"Pipeline DB unavailable: {e}") from e
+        raise HTTPException(
+            status_code=502, detail=f"Pipeline DB unavailable: {e}"
+        ) from e
 
     return MetricsResponse(**payload)

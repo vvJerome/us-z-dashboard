@@ -12,12 +12,14 @@ dist/
 build/
 .pytest_cache/
 .ruff_cache/
+.coverage
 
 # Node / Vite
 node_modules/
 dist/
 .vite/
 *.tsbuildinfo
+coverage/
 
 # Environment — never commit secrets
 .env
@@ -47,3 +49,4 @@ Thumbs.db
 *.tmp
 *.swp
 *~
+.local_test_keys/

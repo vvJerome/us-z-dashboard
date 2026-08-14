@@ -17,28 +17,26 @@ describe("StatusBadge", () => {
     expect(screen.getByText(status)).toBeInTheDocument();
   });
 
-  it("applies gray classes for QUEUED", () => {
-    const { container } = render(<StatusBadge status="QUEUED" />);
-    expect(container.firstChild).toHaveClass("bg-gray-700");
+  it("gives each status a visually distinct variant", () => {
+    const classesByStatus = STATUSES.map((status) => {
+      const { container, unmount } = render(<StatusBadge status={status} />);
+      const classes = (container.firstChild as HTMLElement).className;
+      unmount();
+      return classes;
+    });
+    expect(new Set(classesByStatus).size).toBe(STATUSES.length);
   });
 
-  it("applies blue classes for RUNNING", () => {
-    const { container } = render(<StatusBadge status="RUNNING" />);
-    expect(container.firstChild).toHaveClass("bg-blue-900");
+  it("pulses only for RUNNING", () => {
+    const { container: running } = render(<StatusBadge status="RUNNING" />);
+    expect(running.firstChild).toHaveClass("animate-pulse");
+
+    const { container: completed } = render(<StatusBadge status="COMPLETED" />);
+    expect(completed.firstChild).not.toHaveClass("animate-pulse");
   });
 
-  it("applies green classes for COMPLETED", () => {
-    const { container } = render(<StatusBadge status="COMPLETED" />);
-    expect(container.firstChild).toHaveClass("bg-green-900");
-  });
-
-  it("applies red classes for FAILED", () => {
-    const { container } = render(<StatusBadge status="FAILED" />);
-    expect(container.firstChild).toHaveClass("bg-red-900");
-  });
-
-  it("applies yellow classes for CANCELLED", () => {
-    const { container } = render(<StatusBadge status="CANCELLED" />);
-    expect(container.firstChild).toHaveClass("bg-yellow-900");
+  it("falls back to a default variant for an unrecognized status", () => {
+    render(<StatusBadge status="SOMETHING_NEW" />);
+    expect(screen.getByText("SOMETHING_NEW")).toBeInTheDocument();
   });
 });

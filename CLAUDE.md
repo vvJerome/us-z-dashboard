@@ -20,7 +20,8 @@ Full architecture: [docs/context.md](docs/context.md)
 See `.claude/directions/` for full ADRs:
 
 - **ADR-001** — Kestra for job orchestration (**superseded by ADR-007**)
-- **ADR-007** — SSH + tmux trigger of universal-scraper-v3 on worker-v3; backend FIFO queue (concurrency 1)
+- **ADR-007** — SSH + tmux trigger of universal-scraper-v3 on worker-v3; backend FIFO queue (concurrency clause superseded by ADR-008)
+- **ADR-008** — Per-VPS concurrency: one RUNNING job per worker VPS, each with its own independent SMTP fleet; `repo_dir` is now per-VPS
 - **ADR-002** — 10-second HTTP polling, no WebSocket
 - **ADR-003** — Single Hetzner VPS + Docker Compose, no Kubernetes
 - **ADR-004** — Isolated Docker container per job

@@ -1,0 +1,116 @@
+name: PR checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: scraper
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: scraper_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U scraper -d scraper_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://scraper:test@localhost:5433/scraper_test
+      TEST_DATABASE_URL: postgresql+asyncpg://scraper:test@localhost:5433/scraper_test
+      WORKER_SSH_HOST: ci-worker.invalid
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        # ruff pinned: an unpinned install picks up whatever is latest at CI
+        # run time, and a new default rule set can flag pre-existing files
+        # this PR never touched (verified: 0.15.13 is clean, 0.16.0 is not).
+        run: pip install -r backend/requirements-test.txt ruff==0.15.13
+
+      - name: ruff check
+        run: ruff check backend/
+
+      - name: ruff format --check
+        run: ruff format --check backend/
+
+      - name: Migration tests (isolated — own step, own fresh schema)
+        run: pytest backend/tests/test_migrations.py -v --tb=short
+
+      - name: Unit + feature tests with coverage
+        run: |
+          pytest backend/tests/ --ignore=backend/tests/test_migrations.py \
+            --cov=backend/routers --cov=backend/services \
+            --cov-report=term-missing --cov-fail-under=65 -v --tb=short
+
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - run: npm ci
+
+      - name: tsc --noEmit
+        run: node_modules/.bin/tsc --noEmit
+
+      - name: prettier --check
+        run: node_modules/.bin/prettier --check "src/**/*.{ts,tsx}"
+
+      - name: vitest run --coverage
+        run: node_modules/.bin/vitest run --coverage
+
+      - name: every component has a test file
+        run: |
+          missing=0
+          for f in src/components/*.tsx; do
+            base=$(basename "$f" .tsx)
+            [[ "$base" == *.test ]] && continue
+            if [[ ! -f "src/components/${base}.test.tsx" ]]; then
+              echo "Missing test file: src/components/${base}.test.tsx"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -eq 1 ]]; then
+            echo "testing.md requires every dashboard component to have a test file (src/components/ui/ primitives excluded)."
+            exit 1
+          fi
+
+  loc-limit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: fail on any .py/.ts/.tsx file over 600 lines
+        run: |
+          over_limit=0
+          while IFS= read -r -d '' f; do
+            lines=$(wc -l < "$f")
+            if [[ "$lines" -gt 600 ]]; then
+              echo "$f has $lines lines (limit: 600)"
+              over_limit=1
+            fi
+          done < <(git ls-files -z -- '*.py' '*.ts' '*.tsx')
+          if [[ "$over_limit" -eq 1 ]]; then
+            echo "CLAUDE.md's 600-LOC limit was exceeded — split the file(s) above before merging."
+            exit 1
+          fi

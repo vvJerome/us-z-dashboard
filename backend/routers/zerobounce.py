@@ -13,11 +13,16 @@ from ..database import get_db, AsyncSessionLocal
 from ..models import ZeroBounceJob
 from ..schemas.zerobounce import ZeroBounceJobResponse
 from ..services import zerobounce_runner
+from ..settings import get_settings
+from ..utils.paths import assert_within
 
-DATA_DIR = Path("/data")
 router = APIRouter(prefix="/zerobounce", tags=["zerobounce"])
 
 VALID_EXTENSIONS = {".csv", ".jsonl", ".txt"}
+
+
+def _get_data_dir() -> Path:
+    return get_settings().data_dir
 
 
 @router.post("", response_model=ZeroBounceJobResponse)
@@ -25,15 +30,20 @@ async def create_zerobounce_job(  # TODO: add auth
     file: UploadFile,
     email_col: str = "email",
     db: AsyncSession = Depends(get_db),
+    data_dir: Path = Depends(_get_data_dir),
 ) -> ZeroBounceJobResponse:
     filename = file.filename or "upload.csv"
     if not any(filename.endswith(ext) for ext in VALID_EXTENSIONS):
         raise HTTPException(400, "File must be a .csv, .jsonl, or .txt")
 
     job_id = uuid.uuid4()
-    input_dir = DATA_DIR / "zerobounce" / str(job_id)
+    input_dir = data_dir / "zerobounce" / str(job_id)
     input_dir.mkdir(parents=True, exist_ok=True)
     input_path = input_dir / filename
+    try:
+        assert_within(input_path, data_dir)
+    except ValueError:
+        raise HTTPException(400, "Invalid filename") from None
 
     content = await file.read()
     if len(content) > 100 * 1024 * 1024:
@@ -81,9 +91,7 @@ async def get_zerobounce_job(  # TODO: add auth
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> ZeroBounceJobResponse:
-    result = await db.execute(
-        select(ZeroBounceJob).where(ZeroBounceJob.id == job_id)
-    )
+    result = await db.execute(select(ZeroBounceJob).where(ZeroBounceJob.id == job_id))
     job = result.scalar_one_or_none()
     if job is None:
         raise HTTPException(404, f"ZeroBounce job {job_id} not found")
@@ -94,17 +102,16 @@ async def get_zerobounce_job(  # TODO: add auth
 async def download_zerobounce_result(  # TODO: add auth
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    data_dir: Path = Depends(_get_data_dir),
 ) -> FileResponse:
-    result = await db.execute(
-        select(ZeroBounceJob).where(ZeroBounceJob.id == job_id)
-    )
+    result = await db.execute(select(ZeroBounceJob).where(ZeroBounceJob.id == job_id))
     job = result.scalar_one_or_none()
     if job is None:
         raise HTTPException(404, "Job not found")
     if job.status != "COMPLETED" or not job.output_file_key:
         raise HTTPException(409, "Result not ready yet")
 
-    path = DATA_DIR / job.output_file_key
+    path = data_dir / job.output_file_key
     if not path.exists():
         raise HTTPException(404, "Output file not found")
 

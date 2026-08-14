@@ -37,11 +37,15 @@ curl -s http://localhost/api/jobs/6c943724-a0bd-4748-a51e-a08cfa1f8d8f/metrics
 
 ## VPS context
 
-See `~/.claude/projects/-Users-saravv-Documents-us-z-dashboard/memory/project_vps_kestra_fix.md`
+This section originally pointed to a local Claude Code memory file on one
+engineer's machine and listed the three VPS instances' real IP addresses.
+Both have been redacted here since this is a public-facing repo — real
+infrastructure endpoints should not be committed to version control. See
+your team's internal infra notes for current VPS addresses and SSH keys.
 
-- VPS#1: `23.238.94.175`, key `~/.ssh/id_vps1`
-- VPS#2: `23.238.97.172`, key `~/.ssh/id_vps2`
-- VPS#3: `23.238.100.4`, key `~/.ssh/id_vps3`
+- VPS#1: `<redacted>`, key `~/.ssh/id_vps1`
+- VPS#2: `<redacted>`, key `~/.ssh/id_vps2`
+- VPS#3: `<redacted>`, key `~/.ssh/id_vps3`
 
 ## Next steps
 
@@ -52,7 +56,7 @@ See `~/.claude/projects/-Users-saravv-Documents-us-z-dashboard/memory/project_vp
 ## Fresh Claude Code session
 
 ```bash
-cd /Users/saravv/Documents/us-z-dashboard
+cd <path-to-local-checkout>
 claude
 ```
 
