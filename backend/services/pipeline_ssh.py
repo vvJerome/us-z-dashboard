@@ -90,7 +90,7 @@ _QUERIES: dict[str, str] = {
     # window). Routine validation outcomes (failure_reason like infra_loop /
     # max_attempts) are NOT errors and are intentionally excluded.
     "errors_racknerd": (
-        "SELECT 'cherry' AS source, racknerd_message AS message, COUNT(*) AS n"
+        "SELECT 'proxy25' AS source, racknerd_message AS message, COUNT(*) AS n"
         " FROM records WHERE racknerd_status='error'"
         " AND racknerd_message IS NOT NULL AND racknerd_message != ''"
         " GROUP BY racknerd_message"

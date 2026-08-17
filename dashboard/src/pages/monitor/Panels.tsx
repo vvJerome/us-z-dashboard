@@ -229,7 +229,7 @@ export function BackendsPanel({ data }: { data: MetricsResponse }) {
     "ms_valid",
   ];
   const entries: [string, string][] = [
-    ["racknerd", "Cherry"],
+    ["racknerd", "Proxy25"],
     ["zuhal", "Zuhal"],
   ];
   return card(
@@ -374,7 +374,7 @@ export function RecentPanel({ data }: { data: MetricsResponse }) {
             <tr>
               <th className="p-1">id</th>
               <th className="p-1">email</th>
-              <th className="p-1">cherry</th>
+              <th className="p-1">proxy25</th>
               <th className="p-1">zuhal</th>
               <th className="p-1">when</th>
             </tr>
