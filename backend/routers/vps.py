@@ -8,7 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import Job, VpsInstance
+from ..schemas.metrics import MetricsResponse
 from ..schemas.vps import VpsCreate, VpsResponse
+from ..services import metrics_cache, pipeline_ssh
+from ..utils.paths import validate_safe_absolute_path
 
 router = APIRouter(tags=["vps"])
 
@@ -76,3 +79,28 @@ async def _fetch_vps(db: AsyncSession, vps_id: uuid.UUID) -> VpsInstance:
     if vps is None:
         raise HTTPException(404, f"VPS {vps_id} not found")
     return vps
+
+
+@router.get("/{vps_id}/db-metrics", response_model=MetricsResponse)
+async def get_vps_db_metrics(
+    vps_id: uuid.UUID, db_path: str, db: AsyncSession = Depends(get_db)
+) -> MetricsResponse:
+    # TODO: add auth
+    try:
+        db_path = validate_safe_absolute_path(db_path)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+
+    vps = await _fetch_vps(db, vps_id)
+
+    try:
+        payload = await metrics_cache.get_or_fetch(
+            f"manual:{vps_id}:{db_path}",
+            lambda: pipeline_ssh.fetch_metrics(vps, db_path),
+        )
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=502, detail=f"Pipeline DB unavailable: {e}"
+        ) from e
+
+    return MetricsResponse(**payload)

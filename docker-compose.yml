@@ -61,6 +61,7 @@ services:
     volumes:
       - data_volume:/data
       - ${WORKER_SSH_KEY_PATH:-/root/.ssh/id_worker_v3}:/root/.ssh/id_worker_v3:ro
+      - ${STATE_DASHBOARD_V2_SSH_KEY_PATH:-/root/.ssh/id_state_dashboard_v2}:/root/.ssh/id_state_dashboard_v2:ro
     ports:
       - "127.0.0.1:8000:8000"
     env_file: .env
