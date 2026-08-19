@@ -73,11 +73,19 @@ _QUERIES: dict[str, str] = {
         " SUM(CASE WHEN final_verdict='valid' THEN 1 ELSE 0 END) AS valid,"
         " SUM(CASE WHEN final_verdict='catch_all' THEN 1 ELSE 0 END) AS catch_all,"
         " SUM(CASE WHEN final_verdict='invalid' THEN 1 ELSE 0 END) AS invalid,"
-        " SUM(CASE WHEN final_verdict IN ('error','unknown') THEN 1 ELSE 0 END) AS errored,"
-        " SUM(CASE WHEN record_state='DISCOVERY_FAILED' THEN 1 ELSE 0 END) AS disc_failed"
+        " SUM(CASE WHEN final_verdict IN ('error','unknown') THEN 1 ELSE 0 END) AS errored"
         " FROM records"
-        " WHERE record_state IN ('VALIDATED','VALIDATION_FAILED','DISCOVERY_FAILED')"
+        " WHERE record_state IN ('VALIDATED','VALIDATION_FAILED')"
         " AND updated_at IS NOT NULL"
+        " GROUP BY 1 ORDER BY 1"
+    ),
+    # Every row is one discovered candidate (successful or not), so this is the
+    # true per-hour discovery volume - bucketed by created_at (when the record
+    # was discovered), not updated_at (when it finished validation), since a
+    # record discovered this hour may not reach a terminal outcome for a while.
+    "discovery_history": (
+        "SELECT strftime('%Y-%m-%dT%H:00', created_at) AS hour, COUNT(*) AS n"
+        " FROM records WHERE created_at IS NOT NULL"
         " GROUP BY 1 ORDER BY 1"
     ),
     "recent_validated": (
@@ -97,6 +105,27 @@ _QUERIES: dict[str, str] = {
     ),
     "run_id": "SELECT run_id FROM stats ORDER BY rowid DESC LIMIT 1",
 }
+
+
+def _merge_run_history(
+    outcome_rows: list[dict[str, Any]], discovery_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Union validation-outcome hours (keyed by updated_at) with discovery-volume
+    hours (keyed by created_at) into one sorted per-hour timeline."""
+    outcomes = {r["hour"]: r for r in outcome_rows}
+    discovered = {r["hour"]: r["n"] for r in discovery_rows}
+    hours = sorted(set(outcomes) | set(discovered))
+    return [
+        {
+            "hour": hour,
+            "valid": outcomes.get(hour, {}).get("valid", 0),
+            "catch_all": outcomes.get(hour, {}).get("catch_all", 0),
+            "invalid": outcomes.get(hour, {}).get("invalid", 0),
+            "errored": outcomes.get(hour, {}).get("errored", 0),
+            "discovery": discovered.get(hour, 0),
+        }
+        for hour in hours
+    ]
 
 
 def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
@@ -208,7 +237,9 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         },
         "cost": {"spent_usd": spent, "ceiling_usd": None, "pct": None},
         "cost_breakdown": {"services": services},
-        "run_history": [dict(r) for r in (results.get("run_history") or [])],
+        "run_history": _merge_run_history(
+            results.get("run_history") or [], results.get("discovery_history") or []
+        ),
         "recent_validated": [dict(r) for r in (results.get("recent_validated") or [])],
         "top_recent_errors": errors[:10],
     }
