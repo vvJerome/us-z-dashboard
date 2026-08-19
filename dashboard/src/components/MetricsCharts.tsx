@@ -110,7 +110,7 @@ const RUN_COLORS = [
     border: "rgba(100,116,139,1)",
   },
   {
-    key: "disc_failed" as const,
+    key: "discovery" as const,
     label: "discovery",
     color: "rgba(127,29,29,0.65)",
     border: "rgba(127,29,29,1)",

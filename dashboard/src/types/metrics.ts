@@ -48,7 +48,7 @@ export interface MetricsRunHistoryRow {
   catch_all: number;
   invalid: number;
   errored: number;
-  disc_failed: number;
+  discovery: number;
 }
 
 export interface MetricsValidatedRow {

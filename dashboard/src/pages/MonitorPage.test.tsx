@@ -73,7 +73,7 @@ function makeMetrics(
         catch_all: 1,
         invalid: 0,
         errored: 0,
-        disc_failed: 0,
+        discovery: 0,
       },
     ],
     recent_validated: [

@@ -65,7 +65,7 @@ describe("RunHistoryChart", () => {
         catch_all: 2,
         invalid: 1,
         errored: 0,
-        disc_failed: 0,
+        discovery: 0,
       },
     ];
     const { container } = render(<RunHistoryChart rows={rows} />);
