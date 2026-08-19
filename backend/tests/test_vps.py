@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -125,3 +126,90 @@ async def test_delete_vps_rejects_when_jobs_active(
 
     resp = await client.delete(f"/vps/{vps.id}")
     assert resp.status_code == 409
+
+
+def _make_metrics_payload() -> dict:
+    return {
+        "run_id": "run_wi_full",
+        "as_of": "2026-08-19T00:00:00",
+        "build_ms": 5,
+        "states": {"VALIDATED": 1},
+        "totals": {"all": 1, "terminal": 1, "pending": 0},
+        "rate": {"last_15min": 0, "per_hour": 0, "eta_hours": None, "complete": True},
+        "throughput_60min": [],
+        "backends": {
+            "racknerd": {"error_pct": 0, "total": 0},
+            "zuhal": {"error_pct": 0, "total": 0},
+        },
+        "discovery": {
+            "dns": 0,
+            "serper": 0,
+            "failed": 0,
+            "total_input": 0,
+            "hit_rate_pct": 0,
+        },
+        "cost": {"spent_usd": 0, "ceiling_usd": None, "pct": None},
+        "cost_breakdown": {"services": []},
+        "run_history": [],
+        "recent_validated": [],
+        "top_recent_errors": [],
+    }
+
+
+async def test_get_vps_db_metrics_happy_path(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    vps = VpsInstance(id=uuid.uuid4(), name="manual-vps", is_local=True)
+    db.add(vps)
+    await db.commit()
+
+    with patch(
+        "backend.routers.vps.pipeline_ssh.fetch_metrics",
+        new=AsyncMock(return_value=_make_metrics_payload()),
+    ):
+        resp = await client.get(
+            f"/vps/{vps.id}/db-metrics",
+            params={
+                "db_path": "/home/devonly/pipeline_runs/wi/output/wi_full/pipeline.db"
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.json()["run_id"] == "run_wi_full"
+
+
+async def test_get_vps_db_metrics_unknown_vps(client: AsyncClient) -> None:
+    resp = await client.get(
+        f"/vps/{uuid.uuid4()}/db-metrics",
+        params={"db_path": "/home/devonly/pipeline.db"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.parametrize("db_path", _UNSAFE_PATHS)
+async def test_get_vps_db_metrics_rejects_unsafe_path(
+    client: AsyncClient, db: AsyncSession, db_path: str
+) -> None:
+    vps = VpsInstance(id=uuid.uuid4(), name="manual-vps-2", is_local=True)
+    db.add(vps)
+    await db.commit()
+
+    resp = await client.get(f"/vps/{vps.id}/db-metrics", params={"db_path": db_path})
+    assert resp.status_code == 422
+
+
+async def test_get_vps_db_metrics_maps_runtime_error_to_502(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    vps = VpsInstance(id=uuid.uuid4(), name="manual-vps-3", is_local=True)
+    db.add(vps)
+    await db.commit()
+
+    with patch(
+        "backend.routers.vps.pipeline_ssh.fetch_metrics",
+        new=AsyncMock(side_effect=RuntimeError("sqlite3 CLI not found")),
+    ):
+        resp = await client.get(
+            f"/vps/{vps.id}/db-metrics",
+            params={"db_path": "/home/devonly/pipeline.db"},
+        )
+    assert resp.status_code == 502
