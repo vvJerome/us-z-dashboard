@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { SaveInspectionDialog } from "../components/SaveInspectionDialog";
+import { useInspections, useSavedInspection } from "../hooks/useInspections";
 import { useVps } from "../hooks/useVps";
 import { useVpsDbMetrics } from "../hooks/useVpsDbMetrics";
 import {
@@ -15,10 +17,23 @@ import {
 
 export function InspectPage() {
   const navigate = useNavigate();
+  const { inspectionId } = useParams<{ inspectionId?: string }>();
   const { data: vpsList } = useVps();
+  const { data: savedList } = useInspections();
+  const { data: saved } = useSavedInspection(inspectionId);
+
   const [vpsId, setVpsId] = useState("");
   const [dbPath, setDbPath] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+
+  useEffect(() => {
+    if (saved) {
+      setVpsId(saved.vps_id);
+      setDbPath(saved.db_path);
+      setLoaded(true);
+    }
+  }, [saved]);
 
   const { data, isFetching, isError, error } = useVpsDbMetrics(
     vpsId,
@@ -40,7 +55,9 @@ export function InspectPage() {
           <div className="text-xs uppercase tracking-wider text-slate-400">
             us-z-3 pipeline
           </div>
-          <h1 className="text-xl font-semibold">Inspect pipeline.db</h1>
+          <h1 className="text-xl font-semibold">
+            {saved ? saved.name : "Inspect pipeline.db"}
+          </h1>
         </div>
         <button
           onClick={() => navigate("/")}
@@ -49,6 +66,30 @@ export function InspectPage() {
           ← Jobs
         </button>
       </header>
+
+      {savedList && savedList.length > 0 && (
+        <div className="mb-4 flex flex-col gap-1">
+          <label htmlFor="inspect-saved" className="text-xs text-slate-400">
+            Saved inspections
+          </label>
+          <select
+            id="inspect-saved"
+            value={inspectionId ?? ""}
+            onChange={(e) => {
+              if (e.target.value) navigate(`/inspect/${e.target.value}`);
+              else navigate("/inspect");
+            }}
+            className="w-full max-w-md rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm"
+          >
+            <option value="">Select a saved inspection…</option>
+            {savedList.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <form
         onSubmit={(e) => {
@@ -102,6 +143,16 @@ export function InspectPage() {
         >
           {isFetching ? "Loading…" : "Load"}
         </button>
+
+        {data && !saved && (
+          <button
+            type="button"
+            onClick={() => setShowSaveDialog(true)}
+            className="rounded border border-emerald-700 bg-emerald-900/40 px-4 py-1.5 text-sm text-emerald-200 hover:bg-emerald-900/70"
+          >
+            Save…
+          </button>
+        )}
       </form>
 
       {loaded && !data && !isError && (
@@ -127,6 +178,18 @@ export function InspectPage() {
           <RecentPanel data={data} />
           <ErrorsPanel data={data} />
         </main>
+      )}
+
+      {showSaveDialog && (
+        <SaveInspectionDialog
+          vpsId={vpsId}
+          dbPath={dbPath}
+          onClose={() => setShowSaveDialog(false)}
+          onSaved={(id) => {
+            setShowSaveDialog(false);
+            navigate(`/inspect/${id}`);
+          }}
+        />
       )}
     </div>
   );

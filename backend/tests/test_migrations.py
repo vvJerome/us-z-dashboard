@@ -63,7 +63,7 @@ async def test_migrations_apply_cleanly(migrated_engine) -> None:
     async with migrated_engine.connect() as conn:
         result = await conn.execute(text("SELECT version_num FROM alembic_version"))
         version = result.scalar_one()
-    assert version == "006", f"Expected head revision '006', got '{version}'"
+    assert version == "007", f"Expected head revision '007', got '{version}'"
 
 
 async def test_users_table_exists_with_correct_columns(migrated_engine) -> None:

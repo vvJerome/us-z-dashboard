@@ -17,6 +17,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/inspect" element={<InspectPage />} />
+          <Route path="/inspect/:inspectionId" element={<InspectPage />} />
           <Route path="/jobs/:jobId/monitor" element={<MonitorPage />} />
         </Routes>
       </BrowserRouter>
