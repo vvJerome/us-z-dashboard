@@ -116,9 +116,7 @@ class TestAssembleSnapshot:
         assert "zuhal" not in services
 
     def test_backends_expose_only_smtp(self) -> None:
-        snapshot = _assemble_snapshot(
-            {"backend_racknerd": [{"v": "valid", "n": 3}]}
-        )
+        snapshot = _assemble_snapshot({"backend_racknerd": [{"v": "valid", "n": 3}]})
         assert set(snapshot["backends"]) == {"smtp"}
         assert snapshot["backends"]["smtp"]["total"] == 3
 
