@@ -52,9 +52,9 @@ function makeMetrics(
     rate: { last_15min: 4, per_hour: 16, eta_hours: 0.5, complete: false },
     throughput_60min: [{ minute: "12:00", count: 4 }],
     backends: {
-      racknerd: { error_pct: 10, total: 5, valid: 4, error: 1 },
-      zuhal: { error_pct: 0, total: 2, valid: 2 },
+      smtp: { error_pct: 10, total: 5, valid: 4, error: 1 },
     },
+    heartbeats: { producer: "2026-05-15T11:59:00Z", dispatcher: null },
     discovery: {
       dns: 3,
       serper: 2,
@@ -81,7 +81,6 @@ function makeMetrics(
         unique_id: "u1",
         candidate_email: "a@b.com",
         racknerd_status: "valid",
-        zuhal_status: "valid",
         final_verdict: "valid",
         updated_at: "2026-05-15T11:59:00Z",
       },
@@ -128,9 +127,8 @@ describe("MonitorPage", () => {
     expect(screen.getByText("State machine")).toBeInTheDocument();
     expect(screen.getByText(/Throughput \(last 60 min\)/)).toBeInTheDocument();
     expect(screen.getByText("Cost")).toBeInTheDocument();
-    expect(
-      screen.getByText("Backend verdicts (cumulative)"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("SMTP validation results")).toBeInTheDocument();
+    expect(screen.getByText("Pipeline health")).toBeInTheDocument();
     expect(screen.getByText("Discovery (cumulative)")).toBeInTheDocument();
     expect(screen.getByText("Recent validations")).toBeInTheDocument();
     expect(screen.getByText("Top errors")).toBeInTheDocument();

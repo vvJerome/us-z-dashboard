@@ -99,7 +99,7 @@ class TestAssembleSnapshot:
         assert snapshot["rate"]["per_hour"] == 20
         assert snapshot["rate"]["eta_hours"] == 1.0
 
-    def test_cost_breakdown_sums_serper_variants_and_zuhal(self) -> None:
+    def test_cost_breakdown_sums_serper_variants(self) -> None:
         snapshot = _assemble_snapshot(
             {
                 "cost_breakdown": [
@@ -107,11 +107,37 @@ class TestAssembleSnapshot:
                         "serper_producer_calls": 100,
                         "serper_dispatcher_calls": 50,
                         "serper_places_calls": 10,
-                        "zuhal_calls": 20,
                     }
                 ]
             }
         )
         services = {s["name"]: s for s in snapshot["cost_breakdown"]["services"]}
         assert services["serper"]["calls"] == 160
-        assert services["zuhal"]["calls"] == 20
+        assert "zuhal" not in services
+
+    def test_backends_expose_only_smtp(self) -> None:
+        snapshot = _assemble_snapshot(
+            {"backend_racknerd": [{"v": "valid", "n": 3}]}
+        )
+        assert set(snapshot["backends"]) == {"smtp"}
+        assert snapshot["backends"]["smtp"]["total"] == 3
+
+    def test_heartbeats_default_to_none(self) -> None:
+        snapshot = _assemble_snapshot({})
+        assert snapshot["heartbeats"] == {"producer": None, "dispatcher": None}
+
+    def test_heartbeats_populated_from_stats_row(self) -> None:
+        snapshot = _assemble_snapshot(
+            {
+                "heartbeats": [
+                    {
+                        "last_producer_heartbeat": "2026-08-24T12:00:00",
+                        "last_dispatcher_heartbeat": "2026-08-24T12:05:00",
+                    }
+                ]
+            }
+        )
+        assert snapshot["heartbeats"] == {
+            "producer": "2026-08-24T12:00:00",
+            "dispatcher": "2026-08-24T12:05:00",
+        }

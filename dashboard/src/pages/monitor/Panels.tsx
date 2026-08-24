@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
+  HeartbeatIndicator,
   RunHistoryChart,
   ThroughputChart,
 } from "../../components/MetricsCharts";
@@ -10,8 +11,6 @@ import { fmt, fmtPct, relativeTime } from "./formatters";
 const STATE_ORDER: [string, string][] = [
   ["VALIDATED", "text-emerald-300"],
   ["VALIDATING", "text-sky-300"],
-  ["NEEDS_ZUHAL", "text-amber-300"],
-  ["ZUHAL_VALIDATING", "text-amber-300"],
   ["DISCOVERED", "text-slate-200"],
   ["VALIDATION_FAILED", "text-rose-300"],
   ["DISCOVERY_FAILED", "text-rose-300"],
@@ -215,63 +214,65 @@ export function CostPanel({ data }: { data: MetricsResponse }) {
   );
 }
 
-export function BackendsPanel({ data }: { data: MetricsResponse }) {
-  const VERDICT_ORDER = [
-    "valid",
-    "catch_all",
-    "dual_valid",
-    "dual_catch_all",
-    "invalid",
-    "blocked",
-    "error",
-    "unknown",
-    "not_run",
-    "ms_valid",
-  ];
-  const entries: [string, string][] = [
-    ["racknerd", "Proxy25"],
-    ["zuhal", "Zuhal"],
-  ];
+const VERDICT_ORDER = [
+  "valid",
+  "catch_all",
+  "dual_valid",
+  "dual_catch_all",
+  "invalid",
+  "blocked",
+  "error",
+  "unknown",
+  "not_run",
+  "ms_valid",
+];
+
+export function SmtpOutcomePanel({ data }: { data: MetricsResponse }) {
+  const b = data.backends.smtp ?? { error_pct: 0, total: 0 };
+  const errCls =
+    b.error_pct > 70
+      ? "text-rose-300"
+      : b.error_pct > 40
+        ? "text-amber-300"
+        : "text-emerald-300";
+  const rows = VERDICT_ORDER.filter((v) => (b as Record<string, number>)[v]);
   return card(
     <>
-      {sectionTitle("Backend verdicts (cumulative)")}
-      <div className="space-y-3">
-        {entries.map(([k, label]) => {
-          const b = data.backends[k as keyof typeof data.backends] ?? {
-            error_pct: 0,
-            total: 0,
-          };
-          const errCls =
-            b.error_pct > 70
-              ? "text-rose-300"
-              : b.error_pct > 40
-                ? "text-amber-300"
-                : "text-emerald-300";
-          const pills = VERDICT_ORDER.filter(
-            (v) => (b as Record<string, number>)[v],
-          ).map((v) => <Pill key={v} v={v} />);
-          return (
-            <div key={k}>
-              <div className="mb-1 flex items-baseline justify-between text-sm">
-                <span className="font-semibold">{label}</span>
-                <span className="text-xs text-slate-400">
-                  {fmt(b.total)} probes · err{" "}
-                  <span className={errCls}>{fmtPct(b.error_pct)}</span>
-                </span>
+      {sectionTitle("SMTP validation results")}
+      <div className="mb-2 flex items-baseline justify-between text-sm">
+        <span className="text-xs text-slate-400">
+          {fmt(b.total)} probes · err{" "}
+          <span className={errCls}>{fmtPct(b.error_pct)}</span>
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-y-1.5 font-mono">
+        {rows.length ? (
+          rows.map((v) => (
+            <Fragment key={v}>
+              <div className="text-sm">
+                <Pill v={v} />
               </div>
-              <div className="flex flex-wrap gap-1 text-xs">
-                {pills.length ? (
-                  pills
-                ) : (
-                  <span className="text-slate-500">no data in window</span>
-                )}
+              <div className="text-right text-sm font-semibold text-slate-200">
+                {fmt((b as Record<string, number>)[v])}
               </div>
-            </div>
-          );
-        })}
+            </Fragment>
+          ))
+        ) : (
+          <span className="text-xs text-slate-500">no data in window</span>
+        )}
       </div>
     </>,
-    "col-span-12 lg:col-span-7",
+    "col-span-12 lg:col-span-4",
+  );
+}
+
+export function PipelineHealthPanel({ data }: { data: MetricsResponse }) {
+  return card(
+    <>
+      {sectionTitle("Pipeline health")}
+      <HeartbeatIndicator heartbeats={data.heartbeats} />
+    </>,
+    "col-span-12 lg:col-span-3",
   );
 }
 
@@ -375,7 +376,6 @@ export function RecentPanel({ data }: { data: MetricsResponse }) {
               <th className="p-1">id</th>
               <th className="p-1">email</th>
               <th className="p-1">proxy25</th>
-              <th className="p-1">zuhal</th>
               <th className="p-1">when</th>
             </tr>
           </thead>
@@ -396,9 +396,6 @@ export function RecentPanel({ data }: { data: MetricsResponse }) {
                 </td>
                 <td className="p-1">
                   <Pill v={r.racknerd_status} />
-                </td>
-                <td className="p-1">
-                  <Pill v={r.zuhal_status} />
                 </td>
                 <td className="p-1 text-slate-400">
                   {relativeTime(r.updated_at)}

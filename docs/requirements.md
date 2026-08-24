@@ -34,7 +34,6 @@ A domain is optional for internal use — the VPS IP address works fine for a sm
 | Service | What it does | Required | Notes |
 |---------|-------------|----------|-------|
 | Serper API | Google search enrichment for domain/email discovery | Yes | Pay-per-use, ~$50 per 50,000 searches |
-| Zuhal API | Email validation fallback | Yes | Pay-per-use |
 | bbops.io | Primary SMTP batch email verifier | Yes | Pay-per-use |
 | Racknerd SMTP | SMTP relay via SSH tunnel | Yes (when `enable_proxy=true`) | Already contracted |
 
@@ -65,7 +64,6 @@ These must be set in `.env` on the VPS before the platform can start. Use `.env.
 | `GITHUB_ORG` | GitHub org name | Your GitHub org |
 | `IMAGE_TAG` | Docker image tag to pull (`latest` or a specific SHA) | `latest` for production |
 | `SERPER_API_KEY` | Serper.dev API key | serper.dev dashboard |
-| `ZUHAL_API_KEY` | Zuhal API key | Zuhal provider dashboard |
 | `RACKNERD_HOST` | Racknerd VPS hostname or IP | Racknerd control panel |
 | `RACKNERD_SSH_USER` | SSH user for the SMTP tunnel | `egress` (us-z-3 convention) |
 | `RACKNERD_SSH_KEY_PATH` | Path to SSH private key on the VPS | `/root/.ssh/racknerd_egress` |
@@ -109,7 +107,6 @@ These must be set in `.env` on the VPS before the platform can start. Use `.env.
 | Hetzner CPX31 | €22 | €264 |
 | Domain name | ~$1 | ~$13 |
 | Serper API | Variable | ~$50–200 depending on run volume |
-| Zuhal API | Variable | Based on usage |
 | bbops.io | Variable | Based on usage |
 | GitHub (private org) | $4/user | $48/user |
 | **Fixed infrastructure** | **~€23/month** | **~€280/year** |

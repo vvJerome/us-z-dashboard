@@ -127,8 +127,6 @@ class WorkerClient:
         }
         if config.serper_api_key:
             entries["SERPER_API_KEY"] = config.serper_api_key
-        if config.zuhal_api_key:
-            entries["ZUHAL_API_KEY"] = config.zuhal_api_key
         # Single-quote every value: CONFIG is JSON with spaces, and secrets may
         # contain shell metacharacters — both break `set -a; . job.env` unquoted.
         return "\n".join(f"{k}={shlex.quote(v)}" for k, v in entries.items())

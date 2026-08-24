@@ -138,9 +138,9 @@ def _make_metrics_payload() -> dict:
         "rate": {"last_15min": 0, "per_hour": 0, "eta_hours": None, "complete": True},
         "throughput_60min": [],
         "backends": {
-            "racknerd": {"error_pct": 0, "total": 0},
-            "zuhal": {"error_pct": 0, "total": 0},
+            "smtp": {"error_pct": 0, "total": 0},
         },
+        "heartbeats": {"producer": None, "dispatcher": None},
         "discovery": {
             "dns": 0,
             "serper": 0,
@@ -175,6 +175,7 @@ async def test_get_vps_db_metrics_happy_path(
         )
     assert resp.status_code == 200
     assert resp.json()["run_id"] == "run_wi_full"
+    assert resp.json()["heartbeats"] == {"producer": None, "dispatcher": None}
 
 
 async def test_get_vps_db_metrics_unknown_vps(client: AsyncClient) -> None:

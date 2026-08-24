@@ -44,7 +44,6 @@ async def create_job(
     skip_duplicates: bool = True,
     vps_id: uuid.UUID | None = None,
     serper_api_key: str | None = None,
-    zuhal_api_key: str | None = None,
     db: AsyncSession = Depends(get_db),
     storage: StorageService = Depends(_get_storage),
 ) -> Job:
@@ -61,7 +60,6 @@ async def create_job(
         enable_proxy=enable_proxy,
         skip_duplicates=skip_duplicates,
         serper_api_key=serper_api_key,
-        zuhal_api_key=zuhal_api_key,
     )
 
     file_key = storage.save_upload(job_id, file.filename or "input.jsonl", data)

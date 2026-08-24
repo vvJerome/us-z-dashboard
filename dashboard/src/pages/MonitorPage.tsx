@@ -3,12 +3,13 @@ import type { ErrorInfo, ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useJobMetrics } from "../hooks/useJobMetrics";
 import {
-  BackendsPanel,
   CostPanel,
   DiscoveryPanel,
   ErrorsPanel,
+  PipelineHealthPanel,
   RecentPanel,
   RunHistoryPanel,
+  SmtpOutcomePanel,
   StatePanel,
   ThroughputPanel,
 } from "./monitor/Panels";
@@ -140,7 +141,8 @@ function MonitorPageInner() {
           <StatePanel data={data} />
           <ThroughputPanel data={data} />
           <CostPanel data={data} />
-          <BackendsPanel data={data} />
+          <SmtpOutcomePanel data={data} />
+          <PipelineHealthPanel data={data} />
           <DiscoveryPanel data={data} />
           <RunHistoryPanel data={data} />
           <RecentPanel data={data} />

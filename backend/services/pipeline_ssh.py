@@ -13,7 +13,7 @@ from ..models import VpsInstance
 from .ssh_common import build_connect_kwargs
 
 TERMINAL_STATES = ("VALIDATED", "VALIDATION_FAILED", "COST_SKIPPED")
-PENDING_STATES = ("DISCOVERED", "VALIDATING", "NEEDS_ZUHAL", "ZUHAL_VALIDATING")
+PENDING_STATES = ("DISCOVERED", "VALIDATING")
 
 # Must mirror the pipeline's own pipeline/constants.py API_COSTS so the dashboard
 # cost breakdown reconciles with the pipeline-reported estimated_cost_usd.
@@ -21,7 +21,6 @@ API_COSTS = {
     "serper_producer": 0.001,
     "serper_dispatcher": 0.001,
     "serper_places": 0.001,
-    "zuhal": 0.001,
 }
 
 _QUERIES: dict[str, str] = {
@@ -50,10 +49,6 @@ _QUERIES: dict[str, str] = {
         "SELECT racknerd_status AS v, COUNT(*) AS n FROM records"
         " WHERE racknerd_status IS NOT NULL GROUP BY 1"
     ),
-    "backend_zuhal": (
-        "SELECT zuhal_status AS v, COUNT(*) AS n FROM records"
-        " WHERE zuhal_status IS NOT NULL GROUP BY 1"
-    ),
     "discovery": (
         "SELECT"
         " SUM(CASE WHEN discovery_source='dns' THEN 1 ELSE 0 END) AS dns,"
@@ -65,8 +60,8 @@ _QUERIES: dict[str, str] = {
     "cost_breakdown": (
         "SELECT SUM(serper_producer_calls) AS serper_producer_calls,"
         " SUM(serper_dispatcher_calls) AS serper_dispatcher_calls,"
-        " SUM(serper_places_calls) AS serper_places_calls,"
-        " SUM(zuhal_calls) AS zuhal_calls FROM stats"
+        " SUM(serper_places_calls) AS serper_places_calls"
+        " FROM stats"
     ),
     "run_history": (
         "SELECT strftime('%Y-%m-%dT%H:00', updated_at) AS hour,"
@@ -90,7 +85,7 @@ _QUERIES: dict[str, str] = {
     ),
     "recent_validated": (
         "SELECT unique_id, candidate_email, racknerd_status,"
-        " zuhal_status, final_verdict, updated_at"
+        " final_verdict, updated_at"
         " FROM records WHERE record_state = 'VALIDATED'"
         " ORDER BY updated_at DESC, id DESC LIMIT 30"
     ),
@@ -104,6 +99,10 @@ _QUERIES: dict[str, str] = {
         " GROUP BY racknerd_message"
     ),
     "run_id": "SELECT run_id FROM stats ORDER BY rowid DESC LIMIT 1",
+    "heartbeats": (
+        "SELECT last_producer_heartbeat, last_dispatcher_heartbeat"
+        " FROM stats ORDER BY rowid DESC LIMIT 1"
+    ),
 }
 
 
@@ -182,7 +181,6 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
     sp = cb_row.get("serper_producer_calls") or 0
     sd = cb_row.get("serper_dispatcher_calls") or 0
     spl = cb_row.get("serper_places_calls") or 0
-    zu = cb_row.get("zuhal_calls") or 0
     serper_cost = (
         sp * API_COSTS["serper_producer"]
         + sd * API_COSTS["serper_dispatcher"]
@@ -194,7 +192,6 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
             "calls": sp + sd + spl,
             "cost_usd": round(serper_cost, 4),
         },
-        {"name": "zuhal", "calls": zu, "cost_usd": round(zu * API_COSTS["zuhal"], 4)},
     ]
 
     errors = [dict(r) for r in (results.get("errors_racknerd") or [])]
@@ -205,6 +202,12 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
 
     run_id_row = (results.get("run_id") or [{}])[0] if results.get("run_id") else {}
     run_id_val = run_id_row.get("run_id") if run_id_row else None
+
+    hb_row = (results.get("heartbeats") or [{}])[0] if results.get("heartbeats") else {}
+    heartbeats = {
+        "producer": hb_row.get("last_producer_heartbeat"),
+        "dispatcher": hb_row.get("last_dispatcher_heartbeat"),
+    }
 
     build_ms = round((time.monotonic() - t0) * 1000)
 
@@ -225,9 +228,9 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
             for r in (results.get("throughput_60min") or [])
         ],
         "backends": {
-            "racknerd": _backend(results.get("backend_racknerd")),
-            "zuhal": _backend(results.get("backend_zuhal")),
+            "smtp": _backend(results.get("backend_racknerd")),
         },
+        "heartbeats": heartbeats,
         "discovery": {
             "dns": dns,
             "serper": serper,

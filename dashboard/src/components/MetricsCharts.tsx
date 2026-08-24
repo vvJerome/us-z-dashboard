@@ -12,6 +12,7 @@ import {
 } from "chart.js";
 import { useEffect, useRef } from "react";
 import type { MetricsResponse } from "../types/metrics";
+import { relativeTime } from "../pages/monitor/formatters";
 
 Chart.register(
   BarController,
@@ -187,4 +188,51 @@ export function RunHistoryChart({ rows }: RunHistoryChartProps) {
   }, [rows]);
 
   return <canvas ref={canvasRef} />;
+}
+
+const STALL_THRESHOLD_MIN = 10;
+
+function ageMinutes(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso.replace(" ", "T") + (iso.includes("Z") ? "" : "Z"));
+  if (Number.isNaN(t)) return null;
+  return (Date.now() - t) / 60000;
+}
+
+interface HeartbeatRowProps {
+  label: string;
+  iso: string | null;
+}
+
+function HeartbeatRow({ label, iso }: HeartbeatRowProps) {
+  const age = ageMinutes(iso);
+  const stalled = age != null && age > STALL_THRESHOLD_MIN;
+  const cls =
+    age == null
+      ? "text-slate-500"
+      : stalled
+        ? "text-rose-300"
+        : "text-emerald-300";
+  return (
+    <div className="flex items-baseline justify-between text-sm">
+      <span className="text-slate-400">{label}</span>
+      <span className={cls}>
+        {age == null ? "—" : `${relativeTime(iso)} ago`}
+        {stalled ? " ⚠ stalled" : ""}
+      </span>
+    </div>
+  );
+}
+
+interface HeartbeatIndicatorProps {
+  heartbeats: MetricsResponse["heartbeats"];
+}
+
+export function HeartbeatIndicator({ heartbeats }: HeartbeatIndicatorProps) {
+  return (
+    <div className="space-y-2">
+      <HeartbeatRow label="Producer" iso={heartbeats.producer} />
+      <HeartbeatRow label="Dispatcher" iso={heartbeats.dispatcher} />
+    </div>
+  );
 }

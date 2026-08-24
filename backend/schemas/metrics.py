@@ -14,6 +14,7 @@ class MetricsResponse(BaseModel):
     rate: dict[str, Any]
     throughput_60min: list[dict[str, Any]]
     backends: dict[str, Any]
+    heartbeats: dict[str, Any]
     discovery: dict[str, Any]
     cost: dict[str, Any]
     cost_breakdown: dict[str, Any]

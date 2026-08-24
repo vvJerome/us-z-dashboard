@@ -112,7 +112,6 @@ async def test_trigger_launches_tmux_without_inline_secrets(patched_connect) -> 
         enable_proxy=False,
         skip_duplicates=True,
         serper_api_key="secret-serper",
-        zuhal_api_key=None,
     )
 
     session = await client.trigger(job_id, f"inputs/{job_id}/input.jsonl", config)
@@ -138,7 +137,6 @@ async def test_trigger_raises_on_nonzero_exit(patched_connect) -> None:
         enable_proxy=False,
         skip_duplicates=True,
         serper_api_key=None,
-        zuhal_api_key=None,
     )
 
     with pytest.raises(RuntimeError, match="tmux launch failed"):

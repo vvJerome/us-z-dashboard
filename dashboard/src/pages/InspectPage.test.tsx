@@ -71,9 +71,9 @@ function makeMetrics(
     rate: { last_15min: 0, per_hour: 0, eta_hours: null, complete: true },
     throughput_60min: [],
     backends: {
-      racknerd: { error_pct: 0, total: 5 },
-      zuhal: { error_pct: 0, total: 5 },
+      smtp: { error_pct: 0, total: 5 },
     },
+    heartbeats: { producer: null, dispatcher: null },
     discovery: {
       dns: 0,
       serper: 0,

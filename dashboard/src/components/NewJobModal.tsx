@@ -144,7 +144,7 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
                 {
                   key: "enable_proxy",
                   label: "Enable proxy",
-                  desc: "Route SMTP through the Racknerd tunnel",
+                  desc: "Route SMTP through the proxy tunnel",
                 },
                 {
                   key: "skip_duplicates",

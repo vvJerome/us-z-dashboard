@@ -5,12 +5,13 @@ import { useInspections, useSavedInspection } from "../hooks/useInspections";
 import { useVps } from "../hooks/useVps";
 import { useVpsDbMetrics } from "../hooks/useVpsDbMetrics";
 import {
-  BackendsPanel,
   CostPanel,
   DiscoveryPanel,
   ErrorsPanel,
+  PipelineHealthPanel,
   RecentPanel,
   RunHistoryPanel,
+  SmtpOutcomePanel,
   StatePanel,
   ThroughputPanel,
 } from "./monitor/Panels";
@@ -172,7 +173,8 @@ export function InspectPage() {
           <StatePanel data={data} />
           <ThroughputPanel data={data} />
           <CostPanel data={data} />
-          <BackendsPanel data={data} />
+          <SmtpOutcomePanel data={data} />
+          <PipelineHealthPanel data={data} />
           <DiscoveryPanel data={data} />
           <RunHistoryPanel data={data} />
           <RecentPanel data={data} />

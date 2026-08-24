@@ -55,7 +55,6 @@ export interface MetricsValidatedRow {
   unique_id: string | null;
   candidate_email: string | null;
   racknerd_status: string | null;
-  zuhal_status: string | null;
   final_verdict: string | null;
   updated_at: string | null;
 }
@@ -64,6 +63,11 @@ export interface MetricsErrorRow {
   source: string;
   message: string;
   n: number;
+}
+
+export interface MetricsHeartbeats {
+  producer: string | null;
+  dispatcher: string | null;
 }
 
 export interface MetricsResponse {
@@ -75,9 +79,9 @@ export interface MetricsResponse {
   rate: MetricsRate;
   throughput_60min: MetricsThroughputPoint[];
   backends: {
-    racknerd: MetricsBackend;
-    zuhal: MetricsBackend;
+    smtp: MetricsBackend;
   };
+  heartbeats: MetricsHeartbeats;
   discovery: MetricsDiscovery;
   cost: MetricsCost;
   cost_breakdown: { services: MetricsCostService[] };
