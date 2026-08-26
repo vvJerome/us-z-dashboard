@@ -147,3 +147,55 @@ async def test_sync_running_job_updates_multiple_vps_at_once(
 
     assert await _status(db, running_a.id) == "COMPLETED"
     assert await _status(db, running_b.id) == "COMPLETED"
+
+
+async def test_promote_pushes_input_before_dispatch_on_remote_vps(
+    db: AsyncSession, worker: WorkerController, monkeypatch, remote_vps_id
+) -> None:
+    """Remote VPS: the input file is SFTP-pushed as part of promotion, not job creation."""
+    calls: list[str] = []
+
+    async def fake_push(vps, job_id, file_key, filename) -> None:
+        calls.append(str(job_id))
+
+    monkeypatch.setattr("backend.services.job_queue.push_input", fake_push)
+    queued = await _add_job(db, "QUEUED", vps_id=remote_vps_id)
+
+    await job_queue.try_promote(db)
+
+    assert calls == [str(queued.id)]
+    assert await _status(db, queued.id) == "RUNNING"
+
+
+async def test_promote_marks_failed_when_push_fails(
+    db: AsyncSession, worker: WorkerController, monkeypatch, remote_vps_id
+) -> None:
+    async def fake_push(vps, job_id, file_key, filename) -> None:
+        raise RuntimeError("SSH push to host:path failed: connection refused")
+
+    monkeypatch.setattr("backend.services.job_queue.push_input", fake_push)
+    queued = await _add_job(db, "QUEUED", vps_id=remote_vps_id)
+
+    await job_queue.try_promote(db)
+
+    assert await _status(db, queued.id) == "FAILED"
+    result = await db.execute(select(Job.error_message).where(Job.id == queued.id))
+    assert "Dispatch failed" in result.scalar_one()
+
+
+async def test_promote_skips_push_on_local_vps(
+    db: AsyncSession, worker: WorkerController, monkeypatch
+) -> None:
+    """Local VPS: no SFTP push is attempted."""
+    calls: list[str] = []
+
+    async def fake_push(vps, job_id, file_key, filename) -> None:
+        calls.append(str(job_id))
+
+    monkeypatch.setattr("backend.services.job_queue.push_input", fake_push)
+    queued = await _add_job(db, "QUEUED", vps_id=TEST_VPS_ID)
+
+    await job_queue.try_promote(db)
+
+    assert calls == []
+    assert await _status(db, queued.id) == "RUNNING"

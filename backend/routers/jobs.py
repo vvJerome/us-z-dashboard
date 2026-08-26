@@ -77,21 +77,11 @@ async def create_job(
         },
     )
     db.add(job)
-    await db.flush()
 
-    if not vps.is_local:
-        local_input = storage.input_path(job_id, file.filename or "input.jsonl")
-        remote_input = f"{vps.data_dir}/{file_key}"
-        try:
-            await SshTransfer.push_file(vps, local_input, remote_input)
-        except RuntimeError as exc:
-            job.status = "FAILED"
-            job.error_message = str(exc)
-            await db.commit()
-            await db.refresh(job)
-            return job  # type: ignore[return-value]
-
-    # Job stays QUEUED; the queue promotes it to the worker when the box is free.
+    # Job stays QUEUED; the queue promotes it (and SFTPs the input file, which can
+    # take a while for large uploads) to the worker when the box is free. Keeping
+    # that transfer out of this request means creation responds in constant time,
+    # regardless of file size.
     await db.commit()
     await job_queue.try_promote(db)
     await db.refresh(job)

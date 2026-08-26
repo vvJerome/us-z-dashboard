@@ -30,6 +30,9 @@ TEST_VPS_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 # A second VPS, for tests exercising per-VPS concurrency (two jobs, two boxes).
 TEST_VPS_ID_2 = uuid.UUID("00000000-0000-0000-0000-000000000003")
 
+# A remote (is_local=False) VPS, for tests exercising the SFTP input push on promote.
+REMOTE_VPS_ID = uuid.UUID("00000000-0000-0000-0000-000000000004")
+
 
 class WorkerController:
     """Drives FakeWorker behavior for a single test."""
@@ -136,6 +139,30 @@ async def db(engine) -> AsyncSession:
             await session.commit()
 
         yield session
+
+
+@pytest_asyncio.fixture
+async def remote_vps_id(db: AsyncSession) -> uuid.UUID:
+    """A registered, is_local=False VPS — for tests of the SFTP input push."""
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(VpsInstance).where(VpsInstance.id == REMOTE_VPS_ID)
+    )
+    if result.scalar_one_or_none() is None:
+        db.add(
+            VpsInstance(
+                id=REMOTE_VPS_ID,
+                name="Test Remote VPS",
+                is_local=False,
+                ssh_host="10.0.0.1",
+                ssh_user="devonly",
+                data_dir="/home/devonly/data",
+                repo_dir="/home/devonly/projects/universal-scraper-v3",
+            )
+        )
+        await db.commit()
+    return REMOTE_VPS_ID
 
 
 @pytest_asyncio.fixture(autouse=True)

@@ -106,6 +106,8 @@ async def _promote_one(db: AsyncSession, vps: VpsInstance) -> None:
     try:
         if await worker.has_active_session():
             return  # worker busy with an out-of-band run — retry next cycle
+        if not vps.is_local:
+            await push_input(vps, job.id, job.input_file_key, job.input_filename)
         config = JobConfig(**job.config)
         session = await worker.trigger(job.id, job.input_file_key, config)
     except Exception as exc:
