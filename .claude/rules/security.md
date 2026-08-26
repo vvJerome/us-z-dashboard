@@ -33,6 +33,6 @@ Project-specific security constraints for us-z-dashboard. These extend the globa
 ## Input validation
 
 - File uploads: validate both MIME type AND file extension (not just one — a renamed file can pass extension-only checks).
-- File uploads: enforce a maximum size limit server-side (100 MB). Client-side validation is a UX guard, not a security control.
+- File uploads: enforce a maximum size limit server-side (1 GB). Client-side validation is a UX guard, not a security control.
 - Config JSON submitted by users: always deserialize through a Pydantic schema before any use. Never pass raw user-submitted JSON strings directly to Kestra or the pipeline.
 - Never trust `Content-Type` header alone for file type validation — read the first bytes (magic bytes) if strict validation is needed.

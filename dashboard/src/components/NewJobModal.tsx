@@ -16,7 +16,7 @@ interface NewJobModalProps {
   onClose: () => void;
 }
 
-const MAX_BYTES = 100 * 1024 * 1024;
+const MAX_BYTES = 1024 * 1024 * 1024; // 1 GB
 const ALLOWED_EXT = new Set([".jsonl", ".csv"]);
 
 function getExtension(name: string): string {
@@ -56,7 +56,7 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
       return;
     }
     if (picked.size > MAX_BYTES) {
-      setFileError("File exceeds 100 MB limit.");
+      setFileError("File exceeds 1 GB limit.");
       setFile(null);
       return;
     }

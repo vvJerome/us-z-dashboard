@@ -48,12 +48,13 @@ describe("NewJobModal — file validation", () => {
     expect(screen.getByRole("button", { name: /run scraper/i })).toBeDisabled();
   });
 
-  it("rejects a file over 100 MB", async () => {
+  it("rejects a file over 1 GB", async () => {
     renderModal();
     const input = document.querySelector('input[type="file"]')!;
-    const bigFile = makeFile("huge.jsonl", 101 * 1024 * 1024);
+    const bigFile = makeFile("huge.jsonl", 1);
+    Object.defineProperty(bigFile, "size", { value: 1025 * 1024 * 1024 });
     await userEvent.upload(input as HTMLElement, bigFile);
-    expect(await screen.findByText(/100 mb limit/i)).toBeInTheDocument();
+    expect(await screen.findByText(/1 gb limit/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /run scraper/i })).toBeDisabled();
   });
 

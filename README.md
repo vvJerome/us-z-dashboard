@@ -82,7 +82,7 @@ docker compose restart nginx
 ## Triggering and monitoring a job
 
 1. Open the dashboard and click **Run scraper**
-2. Upload a `.jsonl` or `.csv` file (max 100 MB)
+2. Upload a `.jsonl` or `.csv` file (max 1 GB)
 3. Set config toggles — **Enable proxy** and **Skip duplicates**
 4. Click **Submit** — the job appears as `QUEUED`
 5. Status updates automatically every 10 seconds

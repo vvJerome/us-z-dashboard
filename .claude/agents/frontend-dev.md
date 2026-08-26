@@ -33,7 +33,7 @@ All your work lives in `dashboard/`. Do not touch `backend/`, `pipeline/`, or in
 - "Run scraper" button: disabled + shows "5/5 slots in use" when `runningCount >= 5`
 
 ### NewJobModal
-- File input: accepts `.jsonl` and `.csv` only — validate client-side (type + size ≤ 100 MB)
+- File input: accepts `.jsonl` and `.csv` only — validate client-side (type + size ≤ 1 GB)
 - Config toggles: `enable_proxy` (boolean), `skip_duplicates` (boolean)
 - Submit calls `POST /api/jobs` as multipart/form-data with `file` + `config` (JSON string)
 - Shows upload progress indicator; disables submit during in-flight request

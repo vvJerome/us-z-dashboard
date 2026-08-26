@@ -26,7 +26,7 @@ from ..settings import get_settings
 
 router = APIRouter(tags=["jobs"])
 
-_MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+_MAX_UPLOAD_BYTES = 1024 * 1024 * 1024  # 1 GB
 _ALLOWED_EXTENSIONS = {".jsonl", ".csv"}
 
 # TODO: add auth — replace placeholder user_id with real current user
@@ -52,7 +52,7 @@ async def create_job(
 
     data = await file.read()
     if len(data) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "File exceeds 100 MB limit")
+        raise HTTPException(413, "File exceeds 1 GB limit")
 
     vps = await _resolve_vps(db, vps_id)
     job_id = uuid.uuid4()

@@ -161,8 +161,10 @@ async def test_second_job_queues_behind_running(
 @pytest.mark.feature
 async def test_server_side_file_size_limit(
     client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Server must reject files over 100 MB regardless of client-side validation."""
+    """Server must reject files over the configured limit regardless of client-side validation."""
+    monkeypatch.setattr("backend.routers.jobs._MAX_UPLOAD_BYTES", 100 * 1024 * 1024)
     big_file = b"x" * (101 * 1024 * 1024)
     resp = await client.post(
         "/jobs",

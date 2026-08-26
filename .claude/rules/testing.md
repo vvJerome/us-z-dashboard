@@ -57,7 +57,7 @@ Mark: `@pytest.mark.feature`
 - Full `POST /jobs` → file written to disk → job in DB → status synced → `GET /jobs/{id}/file` streams CSV
 - Download endpoint returns 409 while QUEUED/RUNNING, available once pipeline writes output
 - Log endpoint reads real files written by the simulated pipeline
-- Server-side 100 MB file size rejection (client validation is a UX guard only)
+- Server-side 1 GB file size rejection (client validation is a UX guard only)
 
 **What feature tests do NOT cover:**
 - Worker-side pipeline internals (SSH/tmux still mocked)
