@@ -9,6 +9,11 @@ services:
       postgres
       -c shared_buffers=128MB
       -c max_connections=20
+    ports:
+      # Loopback-only, matching backend/dashboard's own binding below - lets
+      # `make dev-backend` (running on the host, not in compose) reach this
+      # container, without exposing postgres beyond localhost.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
