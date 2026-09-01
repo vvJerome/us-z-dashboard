@@ -27,12 +27,12 @@ describe("StatusBadge", () => {
     expect(new Set(classesByStatus).size).toBe(STATUSES.length);
   });
 
-  it("pulses only for RUNNING", () => {
+  it("shows a spinning loading indicator only for RUNNING", () => {
     const { container: running } = render(<StatusBadge status="RUNNING" />);
-    expect(running.firstChild).toHaveClass("animate-pulse");
+    expect(running.querySelector(".animate-spin")).toBeInTheDocument();
 
     const { container: completed } = render(<StatusBadge status="COMPLETED" />);
-    expect(completed.firstChild).not.toHaveClass("animate-pulse");
+    expect(completed.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
 
   it("falls back to a default variant for an unrecognized status", () => {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { cancelJob, createJob, fetchJobs } from "../api/jobs";
+import { cancelJob, createJob, fetchJob, fetchJobs } from "../api/jobs";
 import type { JobConfig } from "../types/job";
 
 export const JOBS_KEY = ["jobs"] as const;
@@ -12,6 +12,14 @@ export function useJobs() {
   });
 }
 
+export function useJob(id: string) {
+  return useQuery({
+    queryKey: [...JOBS_KEY, id],
+    queryFn: () => fetchJob(id),
+    enabled: Boolean(id),
+  });
+}
+
 export function useCreateJob() {
   const client = useQueryClient();
   return useMutation({
@@ -19,11 +27,13 @@ export function useCreateJob() {
       file,
       config,
       vpsId,
+      name,
     }: {
       file: File;
       config: JobConfig;
       vpsId: string | null;
-    }) => createJob(file, config, vpsId),
+      name?: string;
+    }) => createJob(file, config, vpsId, name),
     onSuccess: () => client.invalidateQueries({ queryKey: JOBS_KEY }),
   });
 }

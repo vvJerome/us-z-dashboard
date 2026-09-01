@@ -128,3 +128,8 @@ async def test_delete_inspection(client: AsyncClient, db: AsyncSession) -> None:
 
     resp = await client.get(f"/inspections/{inspection.id}")
     assert resp.status_code == 404
+
+
+async def test_delete_inspection_not_found(client: AsyncClient) -> None:
+    resp = await client.delete(f"/inspections/{uuid.uuid4()}")
+    assert resp.status_code == 404

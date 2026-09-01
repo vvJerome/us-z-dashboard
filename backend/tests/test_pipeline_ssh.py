@@ -1,11 +1,29 @@
 from __future__ import annotations
 
 import shlex
+import sqlite3
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import asyncssh
 import pytest
 
-from backend.services.pipeline_ssh import _assemble_snapshot, _run_query_ssh
+from backend.services import pipeline_ssh as pipeline_ssh_mod
+from backend.services.pipeline_ssh import (
+    _assemble_snapshot,
+    _run_query_ssh,
+    fetch_metrics,
+)
+
+
+def _vps(is_local: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(
+        is_local=is_local,
+        ssh_host="worker.example.com",
+        ssh_user="devonly",
+        ssh_port=22,
+        ssh_key_path="/root/.ssh/id_worker_v3",
+    )
 
 
 class FakeResult:
@@ -30,7 +48,7 @@ class TestRunQuerySshQuoting:
 
         sent_command = conn.run.call_args.args[0]
         # shlex.split must round-trip the malicious value back to a single
-        # literal argument — if it doesn't, the shell would have split it
+        # literal argument, if it doesn't, the shell would have split it
         # into multiple commands.
         parts = shlex.split(sent_command)
         assert malicious in parts
@@ -64,6 +82,93 @@ class TestRunQuerySshQuoting:
         conn.run.return_value = FakeResult(1, stdout="")
         result = await _run_query_ssh(conn, "/data/db.sqlite", "SELECT 1")
         assert result == []
+
+    async def test_nonzero_exit_with_stdout_raises_runtime_error(self) -> None:
+        conn = AsyncMock()
+        conn.run.return_value = FakeResult(
+            1, stdout="partial output", stderr="database is locked"
+        )
+        with pytest.raises(RuntimeError, match="sqlite3 error"):
+            await _run_query_ssh(conn, "/data/db.sqlite", "SELECT 1")
+
+    async def test_malformed_json_returns_empty_list(self) -> None:
+        conn = AsyncMock()
+        conn.run.return_value = FakeResult(0, stdout="not json")
+        result = await _run_query_ssh(conn, "/data/db.sqlite", "SELECT 1")
+        assert result == []
+
+
+class TestFetchMetrics:
+    """fetch_metrics() is the public entrypoint routers/vps.py calls - covers
+    both the local (direct sqlite3) and remote (SSH + CLI) paths, which were
+    previously only ever exercised indirectly via a router-level mock.
+    """
+
+    async def test_local_vps_with_no_tables_returns_zeroed_snapshot(
+        self, tmp_path
+    ) -> None:
+        db_path = tmp_path / "pipeline.db"
+        sqlite3.connect(db_path).close()  # empty file, no schema at all
+
+        snapshot = await fetch_metrics(_vps(is_local=True), str(db_path))
+
+        assert snapshot["totals"]["all"] == 0
+        assert snapshot["heartbeats"] == {"producer": None, "dispatcher": None}
+
+    async def test_remote_vps_assembles_snapshot_from_ssh_queries(
+        self, monkeypatch
+    ) -> None:
+        conn = AsyncMock()
+        conn.run.return_value = FakeResult(0, stdout="[]")
+        conn.__aenter__.return_value = conn
+        # AsyncMock's default __aexit__ return is truthy, which would silently
+        # swallow any exception raised inside the `async with` block.
+        conn.__aexit__.return_value = False
+        monkeypatch.setattr(pipeline_ssh_mod.asyncssh, "connect", lambda **kwargs: conn)
+
+        snapshot = await fetch_metrics(_vps(is_local=False), "/data/pipeline.db")
+
+        assert snapshot["totals"]["all"] == 0
+        assert conn.run.await_count == len(pipeline_ssh_mod._QUERIES)
+
+    async def test_remote_vps_propagates_missing_sqlite_cli(self, monkeypatch) -> None:
+        conn = AsyncMock()
+        conn.run.return_value = FakeResult(127)
+        conn.__aenter__.return_value = conn
+        # AsyncMock's default __aexit__ return is truthy, which would silently
+        # swallow any exception raised inside the `async with` block.
+        conn.__aexit__.return_value = False
+        monkeypatch.setattr(pipeline_ssh_mod.asyncssh, "connect", lambda **kwargs: conn)
+
+        with pytest.raises(RuntimeError, match="sqlite3 CLI not found"):
+            await fetch_metrics(_vps(is_local=False), "/data/pipeline.db")
+
+    async def test_remote_vps_swallows_a_single_query_failure(
+        self, monkeypatch
+    ) -> None:
+        """One query erroring (e.g. a table missing on an older pipeline.db)
+        must not fail the whole snapshot - it degrades to an empty result for
+        that key only."""
+        conn = AsyncMock()
+        conn.run.return_value = FakeResult(1, stdout="boom", stderr="no such table")
+        conn.__aenter__.return_value = conn
+        # AsyncMock's default __aexit__ return is truthy, which would silently
+        # swallow any exception raised inside the `async with` block.
+        conn.__aexit__.return_value = False
+        monkeypatch.setattr(pipeline_ssh_mod.asyncssh, "connect", lambda **kwargs: conn)
+
+        snapshot = await fetch_metrics(_vps(is_local=False), "/data/pipeline.db")
+
+        assert snapshot["totals"]["all"] == 0
+
+    async def test_connect_failure_wrapped_as_runtime_error(self, monkeypatch) -> None:
+        def _raise(**kwargs):
+            raise asyncssh.Error(1, "connection refused")
+
+        monkeypatch.setattr(pipeline_ssh_mod.asyncssh, "connect", _raise)
+
+        with pytest.raises(RuntimeError, match="SSH connection failed"):
+            await fetch_metrics(_vps(is_local=False), "/data/pipeline.db")
 
 
 class TestAssembleSnapshot:
@@ -139,3 +244,50 @@ class TestAssembleSnapshot:
             "producer": "2026-08-24T12:00:00",
             "dispatcher": "2026-08-24T12:05:00",
         }
+
+    def test_discovery_sums_first_and_third_party_sources(self) -> None:
+        # first_party = direct/owned lookups (dns, company_db); third_party =
+        # resolved via a search/maps API (serper, serper_fallback, places).
+        # The query itself already buckets these (see _QUERIES["discovery"]),
+        # so this just locks in that the row's two columns pass through as-is.
+        snapshot = _assemble_snapshot(
+            {"discovery": [{"first_party": 7, "third_party": 3, "failed": 2}]}
+        )
+        assert snapshot["discovery"]["first_party"] == 7
+        assert snapshot["discovery"]["third_party"] == 3
+        assert snapshot["discovery"]["failed"] == 2
+        assert snapshot["discovery"]["total_input"] == 12
+        assert snapshot["discovery"]["hit_rate_pct"] == round(10 / 12 * 100, 1)
+
+    def test_run_events_default_to_empty_list(self) -> None:
+        assert _assemble_snapshot({})["run_events"] == []
+
+    def test_run_events_pass_through_from_query_result(self) -> None:
+        snapshot = _assemble_snapshot(
+            {
+                "run_events": [
+                    {
+                        "ts": "2026-08-24T12:00:00",
+                        "event": "producer_started",
+                        "detail": "offset=0",
+                    },
+                    {
+                        "ts": "2026-08-24T12:05:00",
+                        "event": "producer_finished",
+                        "detail": "processed=100",
+                    },
+                ]
+            }
+        )
+        assert snapshot["run_events"] == [
+            {
+                "ts": "2026-08-24T12:00:00",
+                "event": "producer_started",
+                "detail": "offset=0",
+            },
+            {
+                "ts": "2026-08-24T12:05:00",
+                "event": "producer_finished",
+                "detail": "processed=100",
+            },
+        ]

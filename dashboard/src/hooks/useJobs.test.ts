@@ -31,6 +31,7 @@ describe("useJobs", () => {
         {
           id: "abc",
           status: "QUEUED",
+          name: null,
           input_filename: "test.jsonl",
           config: {},
           worker_session: null,
@@ -68,7 +69,12 @@ describe("useCreateJob", () => {
       await result.current.mutateAsync({ file, config, vpsId: null });
     });
 
-    expect(vi.mocked(createJob)).toHaveBeenCalledWith(file, config, null);
+    expect(vi.mocked(createJob)).toHaveBeenCalledWith(
+      file,
+      config,
+      null,
+      undefined,
+    );
   });
 
   it("is in idle state before mutation fires", () => {

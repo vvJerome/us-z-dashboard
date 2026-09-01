@@ -14,7 +14,7 @@ TEST_DB_URL = os.environ.get(
 
 @pytest.fixture(autouse=True)
 def clean_jobs():
-    """Shadow conftest.py's autouse `clean_jobs` fixture (same name — pytest
+    """Shadow conftest.py's autouse `clean_jobs` fixture (same name, pytest
     resolves the closer one), which otherwise forces table creation via
     SQLAlchemy metadata (through its `db`/`engine` dependency) before this
     module's tests get a chance to run `alembic upgrade head` against a
@@ -29,7 +29,7 @@ async def migrated_engine():
 
     Function-scoped, not module-scoped: pytest-asyncio (asyncio_mode=auto,
     no configured loop scope) gives each test function its own event loop,
-    and asyncpg connections can't be reused across loops — a module-scoped
+    and asyncpg connections can't be reused across loops, a module-scoped
     engine shared across tests raised "Event loop is closed" on the second
     test to touch it. Re-running the migration per test is fast (<1s).
     """
@@ -63,7 +63,7 @@ async def test_migrations_apply_cleanly(migrated_engine) -> None:
     async with migrated_engine.connect() as conn:
         result = await conn.execute(text("SELECT version_num FROM alembic_version"))
         version = result.scalar_one()
-    assert version == "007", f"Expected head revision '007', got '{version}'"
+    assert version == "008", f"Expected head revision '008', got '{version}'"
 
 
 async def test_users_table_exists_with_correct_columns(migrated_engine) -> None:
@@ -101,6 +101,7 @@ async def test_jobs_table_exists_with_correct_columns(migrated_engine) -> None:
         "id",
         "user_id",
         "status",
+        "name",
         "input_filename",
         "input_file_key",
         "output_file_key",

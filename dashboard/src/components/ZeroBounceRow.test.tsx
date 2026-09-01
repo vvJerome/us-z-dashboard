@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { ZeroBounceJob } from "../types/zerobounce";
+import { renderTableRow } from "../test-utils";
 import { ZeroBounceRow } from "./ZeroBounceRow";
 
 function makeJob(overrides: Partial<ZeroBounceJob> = {}): ZeroBounceJob {
@@ -23,13 +25,13 @@ function makeJob(overrides: Partial<ZeroBounceJob> = {}): ZeroBounceJob {
 
 describe("ZeroBounceRow", () => {
   it("renders status and filename", () => {
-    render(<ZeroBounceRow job={makeJob()} />);
+    renderTableRow(<ZeroBounceRow job={makeJob()} />);
     expect(screen.getByText("QUEUED")).toBeInTheDocument();
     expect(screen.getByText("emails.csv")).toBeInTheDocument();
   });
 
   it("shows progress while RUNNING", () => {
-    render(
+    renderTableRow(
       <ZeroBounceRow
         job={makeJob({
           status: "RUNNING",
@@ -42,7 +44,7 @@ describe("ZeroBounceRow", () => {
   });
 
   it("shows a Download link only when COMPLETED with an output file", () => {
-    render(
+    renderTableRow(
       <ZeroBounceRow
         job={makeJob({
           status: "COMPLETED",
@@ -57,18 +59,29 @@ describe("ZeroBounceRow", () => {
   });
 
   it("does not show a Download link while RUNNING", () => {
-    render(<ZeroBounceRow job={makeJob({ status: "RUNNING" })} />);
+    renderTableRow(<ZeroBounceRow job={makeJob({ status: "RUNNING" })} />);
     expect(
       screen.queryByRole("link", { name: /download/i }),
     ).not.toBeInTheDocument();
   });
 
   it("renders the error message for FAILED jobs", () => {
-    render(
+    renderTableRow(
       <ZeroBounceRow
         job={makeJob({ status: "FAILED", error_message: "Bad CSV" })}
       />,
     );
     expect(screen.getByText("Bad CSV")).toBeInTheDocument();
+  });
+
+  it("shows filter mode and email column once expanded", async () => {
+    renderTableRow(
+      <ZeroBounceRow
+        job={makeJob({ filter_mode: "valid_only", email_col: "work_email" })}
+      />,
+    );
+    await userEvent.click(screen.getByText("emails.csv"));
+    expect(await screen.findByText("valid_only")).toBeInTheDocument();
+    expect(screen.getByText("work_email")).toBeInTheDocument();
   });
 });

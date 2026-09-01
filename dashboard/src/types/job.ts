@@ -4,6 +4,7 @@ export type JobStatus =
 export interface Job {
   id: string;
   status: JobStatus;
+  name: string | null;
   input_filename: string;
   config: Record<string, boolean>;
   worker_session: string | null;

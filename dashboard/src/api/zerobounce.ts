@@ -1,15 +1,14 @@
 import type { ZeroBounceJob } from "../types/zerobounce";
+import { request } from "./client";
+
+const BASE = "/api/zerobounce";
 
 export async function fetchZeroBounceJobs(): Promise<ZeroBounceJob[]> {
-  const res = await fetch("/api/zerobounce", { cache: "no-store" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return request<ZeroBounceJob[]>(BASE, { cache: "no-store" });
 }
 
 export async function fetchZeroBounceJob(id: string): Promise<ZeroBounceJob> {
-  const res = await fetch(`/api/zerobounce/${id}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return request<ZeroBounceJob>(`${BASE}/${id}`, { cache: "no-store" });
 }
 
 export async function createZeroBounceJob(
@@ -18,11 +17,8 @@ export async function createZeroBounceJob(
 ): Promise<ZeroBounceJob> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(
-    `/api/zerobounce?email_col=${encodeURIComponent(emailCol)}`,
+  return request<ZeroBounceJob>(
+    `${BASE}?email_col=${encodeURIComponent(emailCol)}`,
     { method: "POST", body: form },
   );
-  const body = await res.json();
-  if (!res.ok) throw new Error(body.detail ?? `HTTP ${res.status}`);
-  return body;
 }

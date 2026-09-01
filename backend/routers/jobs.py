@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Job, VpsInstance
+from ..models import PLACEHOLDER_USER_ID, Job, VpsInstance
 from ..schemas.jobs import (
     JobConfig,
     JobDownloadResponse,
@@ -29,9 +29,6 @@ router = APIRouter(tags=["jobs"])
 _MAX_UPLOAD_BYTES = 1024 * 1024 * 1024  # 1 GB
 _ALLOWED_EXTENSIONS = {".jsonl", ".csv"}
 
-# TODO: add auth — replace placeholder user_id with real current user
-_PLACEHOLDER_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
-
 
 def _get_storage() -> StorageService:
     return StorageService(get_settings().data_dir)
@@ -44,6 +41,7 @@ async def create_job(
     skip_duplicates: bool = True,
     vps_id: uuid.UUID | None = None,
     serper_api_key: str | None = None,
+    name: str | None = None,
     db: AsyncSession = Depends(get_db),
     storage: StorageService = Depends(_get_storage),
 ) -> Job:
@@ -66,9 +64,10 @@ async def create_job(
 
     job = Job(
         id=job_id,
-        user_id=_PLACEHOLDER_USER_ID,
+        user_id=PLACEHOLDER_USER_ID,
         vps_id=vps.id,
         status="QUEUED",
+        name=name.strip() if name and name.strip() else None,
         input_filename=file.filename or "input.jsonl",
         input_file_key=file_key,
         config={
@@ -90,7 +89,7 @@ async def create_job(
 
 @router.get("", response_model=JobListResponse)
 async def list_jobs(db: AsyncSession = Depends(get_db)) -> JobListResponse:
-    # TODO: add auth — filter by current user
+    # TODO: add auth, filter by current user
     await job_queue.sync_running_job(db)
     await job_queue.try_promote(db)
     result = await db.execute(select(Job).order_by(Job.created_at.desc()))

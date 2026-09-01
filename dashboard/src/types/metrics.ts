@@ -23,8 +23,8 @@ export interface MetricsBackend {
 }
 
 export interface MetricsDiscovery {
-  dns: number;
-  serper: number;
+  first_party: number;
+  third_party: number;
   failed: number;
   total_input: number;
   hit_rate_pct: number;
@@ -55,7 +55,8 @@ export interface MetricsValidatedRow {
   unique_id: string | null;
   candidate_email: string | null;
   racknerd_status: string | null;
-  final_verdict: string | null;
+  canonical_status: string | null;
+  canonical_source: string | null;
   updated_at: string | null;
 }
 
@@ -68,6 +69,12 @@ export interface MetricsErrorRow {
 export interface MetricsHeartbeats {
   producer: string | null;
   dispatcher: string | null;
+}
+
+export interface MetricsRunEvent {
+  ts: string;
+  event: string;
+  detail: string | null;
 }
 
 export interface MetricsResponse {
@@ -88,4 +95,5 @@ export interface MetricsResponse {
   run_history: MetricsRunHistoryRow[];
   recent_validated: MetricsValidatedRow[];
   top_recent_errors: MetricsErrorRow[];
+  run_events: MetricsRunEvent[];
 }

@@ -122,7 +122,7 @@ async def test_trigger_launches_tmux_without_inline_secrets(patched_connect) -> 
     assert f"tmux new-session -d -s job-{job_id}" in cmd
     assert ".venv/bin/python entrypoint.py" in cmd
     assert "exit_code" in cmd
-    # CONFIG is JSON with spaces — it MUST be single-quoted in the env file so
+    # CONFIG is JSON with spaces, it MUST be single-quoted in the env file so
     # `set -a; . job.env` doesn't word-split it (regression: lost CONFIG → defaults).
     assert 'CONFIG=\'{"enable_proxy": false, "skip_duplicates": true}\'' in cmd
     # Secret goes into the env file body, never onto the command line directly

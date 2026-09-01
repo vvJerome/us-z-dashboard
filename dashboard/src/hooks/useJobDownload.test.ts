@@ -27,7 +27,7 @@ describe("useJobDownload", () => {
   });
 
   it("resets to loading=false and error=null after successful fetch", async () => {
-    // Suppress the a.click() DOM side-effect — untestable in jsdom
+    // Suppress the a.click() DOM side-effect, untestable in jsdom
     vi.mocked(fetchJobDownload).mockResolvedValue({
       url: "/api/jobs/job-1/file",
     });

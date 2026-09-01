@@ -10,10 +10,16 @@ interface LogViewerProps {
 
 export function LogViewer({ jobId, status }: LogViewerProps) {
   const { data, isLoading } = useJobLogs(jobId, status);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Scroll only this pane's own viewport to its newest line, a bare
+    // scrollIntoView() also drags every scrollable ancestor (including the
+    // page's own main content area) toward this element, which looked like
+    // expanding a job row was "pushing the page down" instead of just
+    // opening the log pane in place.
+    const el = viewportRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [data?.lines]);
 
   if (isLoading) {
@@ -23,15 +29,17 @@ export function LogViewer({ jobId, status }: LogViewerProps) {
   const lines = data?.lines ?? [];
 
   return (
-    <ScrollArea className="mt-2 max-h-64 rounded-md bg-background/60 p-3">
+    <ScrollArea
+      ref={viewportRef}
+      className="mt-2 max-h-64 rounded-md bg-zinc-950 p-3"
+    >
       {lines.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No logs yet.</p>
+        <p className="text-xs text-zinc-500">No logs yet.</p>
       ) : (
-        <pre className="whitespace-pre-wrap break-all font-mono text-xs text-foreground/80">
+        <pre className="whitespace-pre-wrap break-all font-mono text-xs text-zinc-300">
           {lines.join("\n")}
         </pre>
       )}
-      <div ref={bottomRef} />
     </ScrollArea>
   );
 }

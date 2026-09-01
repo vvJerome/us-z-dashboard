@@ -8,13 +8,18 @@ vi.mock("../api/jobs", () => ({
   fetchJobs: vi.fn(),
   cancelJob: vi.fn(),
 }));
+vi.mock("../api/vps", () => ({
+  fetchVpsList: vi.fn().mockResolvedValue([]),
+}));
 
+import { fetchVpsList } from "../api/vps";
 import { fetchJobs } from "../api/jobs";
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
     id: crypto.randomUUID(),
     status: "QUEUED",
+    name: null,
     input_filename: "records.jsonl",
     config: { enable_proxy: false, skip_duplicates: true },
     worker_session: null,
@@ -42,18 +47,20 @@ describe("JobList", () => {
     expect(await screen.findByText(/no jobs yet/i)).toBeInTheDocument();
   });
 
-  it("enables the Run scraper button when no jobs are RUNNING", async () => {
+  it("enables the Run enrichment button when no jobs are RUNNING", async () => {
     mockJobs([makeJob({ status: "QUEUED" })]);
     renderWithQuery(<JobList />);
-    const button = await screen.findByRole("button", { name: /run scraper/i });
+    const button = await screen.findByRole("button", {
+      name: /run enrichment/i,
+    });
     expect(button).not.toBeDisabled();
   });
 
-  it("disables the Run scraper button when 1 job is RUNNING", async () => {
+  it("disables the Run enrichment button when 1 job is RUNNING", async () => {
     mockJobs([makeJob({ status: "RUNNING" })]);
     renderWithQuery(<JobList />);
     await screen.findByText(/1\/1 slots in use/i);
-    const button = screen.getByRole("button", { name: /run scraper/i });
+    const button = screen.getByRole("button", { name: /run enrichment/i });
     expect(button).toBeDisabled();
   });
 
@@ -66,14 +73,52 @@ describe("JobList", () => {
   it("does not show slots message when no jobs are running", async () => {
     mockJobs([makeJob({ status: "QUEUED" })]);
     renderWithQuery(<JobList />);
-    await screen.findByRole("button", { name: /run scraper/i });
+    await screen.findByRole("button", { name: /run enrichment/i });
     expect(screen.queryByText(/slots in use/i)).not.toBeInTheDocument();
   });
 
-  it("shows loading state before data arrives", () => {
-    vi.mocked(fetchJobs).mockImplementation(() => new Promise(() => {}));
+  it("allows one RUNNING job per active VPS, not a fixed slot of 1", async () => {
+    vi.mocked(fetchVpsList).mockResolvedValue([
+      {
+        id: "vps-a",
+        name: "vps-a",
+        is_local: true,
+        is_active: true,
+        ssh_host: null,
+        ssh_user: "root",
+        ssh_port: 22,
+        data_dir: "/data",
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "vps-b",
+        name: "vps-b",
+        is_local: false,
+        is_active: true,
+        ssh_host: "b.example.com",
+        ssh_user: "root",
+        ssh_port: 22,
+        data_dir: "/data",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    mockJobs([makeJob({ status: "RUNNING" })]);
     renderWithQuery(<JobList />);
-    expect(screen.getByText(/loading jobs/i)).toBeInTheDocument();
+    await screen.findByRole("button", { name: /run enrichment/i });
+    expect(screen.queryByText(/slots in use/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /run enrichment/i }),
+    ).not.toBeDisabled();
+  });
+
+  it("shows a skeleton loading state before data arrives", () => {
+    vi.mocked(fetchJobs).mockImplementation(() => new Promise(() => {}));
+    const { container } = renderWithQuery(<JobList />);
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText(/no jobs yet/i)).not.toBeInTheDocument();
   });
 
   it("shows error state when fetch fails", async () => {

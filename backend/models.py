@@ -10,6 +10,10 @@ from sqlalchemy.sql import func
 
 from .database import Base
 
+# TODO: add auth, every Job is attributed to this placeholder user until
+# real accounts exist. Seeded at startup by main.py::_seed_placeholder_user.
+PLACEHOLDER_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
 
 class User(Base):
     __tablename__ = "users"
@@ -81,6 +85,7 @@ class Job(Base):
         UUID(as_uuid=True), ForeignKey("vps_instances.id"), nullable=True
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="QUEUED")
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     input_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     input_file_key: Mapped[str] = mapped_column(Text, nullable=False)
     output_file_key: Mapped[str | None] = mapped_column(Text, nullable=True)

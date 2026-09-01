@@ -19,7 +19,7 @@ except ImportError:
 
 target_metadata = Base.metadata
 
-# Read DATABASE_URL from environment — asyncpg is async-only, Alembic needs sync psycopg2.
+# Read DATABASE_URL from environment, asyncpg is async-only, Alembic needs sync psycopg2.
 _raw_url = os.environ.get("DATABASE_URL", "")
 if not _raw_url:
     raise RuntimeError(

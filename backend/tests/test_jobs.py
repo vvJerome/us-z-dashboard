@@ -7,11 +7,19 @@ from httpx import AsyncClient
 from .conftest import WorkerController
 
 
-async def _create(client: AsyncClient, data: bytes, name: str = "records.jsonl"):
+async def _create(
+    client: AsyncClient,
+    data: bytes,
+    name: str = "records.jsonl",
+    job_name: str | None = None,
+):
+    params = {"enable_proxy": "false", "skip_duplicates": "true"}
+    if job_name is not None:
+        params["name"] = job_name
     return await client.post(
         "/jobs",
         files={"file": (name, data, "application/octet-stream")},
-        params={"enable_proxy": "false", "skip_duplicates": "true"},
+        params=params,
     )
 
 
@@ -72,6 +80,33 @@ async def test_create_job_no_filename(client: AsyncClient, sample_jsonl: bytes) 
     )
     # FastAPI raises 422 before our handler runs when the filename is empty
     assert response.status_code in (400, 422)
+
+
+async def test_create_job_uses_the_provided_name(
+    client: AsyncClient, sample_jsonl: bytes
+) -> None:
+    response = await _create(client, sample_jsonl, job_name="Q3 outreach list")
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Q3 outreach list"
+
+
+async def test_create_job_defaults_name_to_none_when_omitted(
+    client: AsyncClient, sample_jsonl: bytes
+) -> None:
+    response = await _create(client, sample_jsonl)
+
+    assert response.status_code == 201
+    assert response.json()["name"] is None
+
+
+async def test_create_job_treats_a_blank_name_as_none(
+    client: AsyncClient, sample_jsonl: bytes
+) -> None:
+    response = await _create(client, sample_jsonl, job_name="   ")
+
+    assert response.status_code == 201
+    assert response.json()["name"] is None
 
 
 # ── GET /jobs ─────────────────────────────────────────────────────────────────

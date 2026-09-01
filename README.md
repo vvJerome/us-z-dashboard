@@ -1,6 +1,6 @@
 # us-z-dashboard
 
-Universal scraper platform for running long-running JSONL/CSV scraper jobs from a shared web dashboard.
+**Enrichment Engine** — a platform for running long-running JSONL/CSV enrichment jobs from a shared web dashboard.
 
 Full architecture: [docs/context.md](docs/context.md)
 
@@ -81,7 +81,7 @@ docker compose restart nginx
 
 ## Triggering and monitoring a job
 
-1. Open the dashboard and click **Run scraper**
+1. Open the dashboard and click **Run enrichment**
 2. Upload a `.jsonl` or `.csv` file (max 1 GB)
 3. Set config toggles — **Enable proxy** and **Skip duplicates**
 4. Click **Submit** — the job appears as `QUEUED`

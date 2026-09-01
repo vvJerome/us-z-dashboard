@@ -33,7 +33,7 @@ def no_zerobounce_run(monkeypatch):
         return None
 
     monkeypatch.setattr(
-        "backend.routers.zerobounce.zerobounce_runner.run_zerobounce", _noop
+        "backend.services.zerobounce_queue.zerobounce_runner.run_zerobounce", _noop
     )
 
 
@@ -62,14 +62,43 @@ class TestCreateZeroBounceJob:
         )
         assert resp.status_code == 400
 
-    async def test_accepts_valid_csv_and_queues_job(self, client: AsyncClient) -> None:
+    async def test_rejected_upload_leaves_no_directory_behind(
+        self, client: AsyncClient, tmp_path
+    ) -> None:
+        """Regression test: the job_id directory used to get mkdir'd before
+        the filename was validated, leaving an empty directory on disk for
+        every rejected (e.g. path-traversal) upload attempt."""
+        before = (
+            set((tmp_path / "zerobounce").iterdir())
+            if (tmp_path / "zerobounce").exists()
+            else set()
+        )
+
+        resp = await client.post(
+            "/zerobounce",
+            files={"file": ("../../evil.csv", b"a,b\n1,2", "text/csv")},
+        )
+        assert resp.status_code == 400
+
+        after = (
+            set((tmp_path / "zerobounce").iterdir())
+            if (tmp_path / "zerobounce").exists()
+            else set()
+        )
+        assert after == before
+
+    async def test_accepts_valid_csv_and_promotes_immediately(
+        self, client: AsyncClient
+    ) -> None:
+        """No other job is queued, so try_promote flips it straight to RUNNING
+        (synchronously, before the response is returned)."""
         resp = await client.post(
             "/zerobounce",
             files={"file": ("emails.csv", b"email\nfoo@bar.com", "text/csv")},
         )
         assert resp.status_code == 200
         body = resp.json()
-        assert body["status"] == "QUEUED"
+        assert body["status"] == "RUNNING"
         assert body["input_filename"] == "emails.csv"
 
     async def test_accepts_jsonl_extension(self, client: AsyncClient) -> None:

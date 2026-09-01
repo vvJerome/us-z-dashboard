@@ -49,10 +49,18 @@ _QUERIES: dict[str, str] = {
         "SELECT racknerd_status AS v, COUNT(*) AS n FROM records"
         " WHERE racknerd_status IS NOT NULL GROUP BY 1"
     ),
+    # discovery_source has 5 real values (see pipeline/discovery_candidates.py):
+    # dns and company_db are direct/owned lookups against the business's own
+    # records (first-party); serper, serper_fallback, and places all resolve a
+    # candidate through a third-party search/maps API. The previous query only
+    # summed 'dns' and 'serper', so company_db/places/serper_fallback hits were
+    # silently missing from both the counts and the hit-rate percentage.
     "discovery": (
         "SELECT"
-        " SUM(CASE WHEN discovery_source='dns' THEN 1 ELSE 0 END) AS dns,"
-        " SUM(CASE WHEN discovery_source='serper' THEN 1 ELSE 0 END) AS serper,"
+        " SUM(CASE WHEN discovery_source IN ('dns','company_db') THEN 1 ELSE 0 END)"
+        " AS first_party,"
+        " SUM(CASE WHEN discovery_source IN ('serper','serper_fallback','places')"
+        " THEN 1 ELSE 0 END) AS third_party,"
         " SUM(CASE WHEN record_state='DISCOVERY_FAILED' THEN 1 ELSE 0 END) AS failed"
         " FROM records"
     ),
@@ -63,12 +71,19 @@ _QUERIES: dict[str, str] = {
         " SUM(serper_places_calls) AS serper_places_calls"
         " FROM stats"
     ),
+    # canonical_status (see pipeline/verdicts.py) is the pipeline's own single
+    # normalized verdict - it's final_verdict passed through normalize_verdict(),
+    # then overwritten with the ZeroBounce ground truth once that's ingested, so
+    # it's strictly at least as accurate as final_verdict and more accurate for
+    # any record ZeroBounce has reconciled. do_not_mail/abuse/disposable are rare
+    # ZeroBounce-only outcomes, folded into the same "errored" bucket as unknown.
     "run_history": (
         "SELECT strftime('%Y-%m-%dT%H:00', updated_at) AS hour,"
-        " SUM(CASE WHEN final_verdict='valid' THEN 1 ELSE 0 END) AS valid,"
-        " SUM(CASE WHEN final_verdict='catch_all' THEN 1 ELSE 0 END) AS catch_all,"
-        " SUM(CASE WHEN final_verdict='invalid' THEN 1 ELSE 0 END) AS invalid,"
-        " SUM(CASE WHEN final_verdict IN ('error','unknown') THEN 1 ELSE 0 END) AS errored"
+        " SUM(CASE WHEN canonical_status='valid' THEN 1 ELSE 0 END) AS valid,"
+        " SUM(CASE WHEN canonical_status='catch_all' THEN 1 ELSE 0 END) AS catch_all,"
+        " SUM(CASE WHEN canonical_status='invalid' THEN 1 ELSE 0 END) AS invalid,"
+        " SUM(CASE WHEN canonical_status IN"
+        " ('unknown','do_not_mail','abuse','disposable') THEN 1 ELSE 0 END) AS errored"
         " FROM records"
         " WHERE record_state IN ('VALIDATED','VALIDATION_FAILED')"
         " AND updated_at IS NOT NULL"
@@ -85,7 +100,7 @@ _QUERIES: dict[str, str] = {
     ),
     "recent_validated": (
         "SELECT unique_id, candidate_email, racknerd_status,"
-        " final_verdict, updated_at"
+        " canonical_status, canonical_source, updated_at"
         " FROM records WHERE record_state = 'VALIDATED'"
         " ORDER BY updated_at DESC, id DESC LIMIT 30"
     ),
@@ -103,6 +118,10 @@ _QUERIES: dict[str, str] = {
         "SELECT last_producer_heartbeat, last_dispatcher_heartbeat"
         " FROM stats ORDER BY rowid DESC LIMIT 1"
     ),
+    # Append-only run lifecycle timeline (pipeline/db/meta.py::record_run_event) -
+    # producer/dispatcher start+finish, the ZeroBounce gate, and manual halts.
+    # Previously unused by the dashboard entirely.
+    "run_events": "SELECT ts, event, detail FROM run_events ORDER BY id DESC LIMIT 20",
 }
 
 
@@ -164,11 +183,13 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         return {**d, "error_pct": err_pct, "total": tot}
 
     disc_row = (results.get("discovery") or [{}])[0]
-    dns = disc_row.get("dns") or 0
-    serper = disc_row.get("serper") or 0
+    first_party = disc_row.get("first_party") or 0
+    third_party = disc_row.get("third_party") or 0
     failed = disc_row.get("failed") or 0
-    disc_total = dns + serper + failed
-    hit_rate = round((dns + serper) / disc_total * 100, 1) if disc_total else 0.0
+    disc_total = first_party + third_party + failed
+    hit_rate = (
+        round((first_party + third_party) / disc_total * 100, 1) if disc_total else 0.0
+    )
 
     cost_row = (results.get("cost") or [{}])[0] if results.get("cost") else {}
     spent = round(cost_row.get("estimated_cost_usd") or 0.0, 4)
@@ -232,8 +253,8 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         },
         "heartbeats": heartbeats,
         "discovery": {
-            "dns": dns,
-            "serper": serper,
+            "first_party": first_party,
+            "third_party": third_party,
             "failed": failed,
             "total_input": disc_total,
             "hit_rate_pct": hit_rate,
@@ -245,6 +266,7 @@ def _assemble_snapshot(results: dict[str, Any]) -> dict[str, Any]:
         ),
         "recent_validated": [dict(r) for r in (results.get("recent_validated") or [])],
         "top_recent_errors": errors[:10],
+        "run_events": [dict(r) for r in (results.get("run_events") or [])],
     }
 
 
@@ -271,7 +293,7 @@ async def _run_query_ssh(
     result = await conn.run(command, timeout=10)
     if result.exit_status == 127:
         raise RuntimeError(
-            "sqlite3 CLI not found on VPS — install with: apt-get install sqlite3"
+            "sqlite3 CLI not found on VPS, install with: apt-get install sqlite3"
         )
     if result.exit_status != 0:
         stdout = (result.stdout or "").strip()

@@ -1,5 +1,5 @@
 """
-Feature test — the ZeroBounce runner's full processing loop.
+Feature test, the ZeroBounce runner's full processing loop.
 
 Real PostgreSQL and real filesystem I/O (tmp_path); only the outbound
 ZeroBounce HTTP calls are mocked, matching this project's feature-test

@@ -1,5 +1,5 @@
 """
-Feature tests — full job workflow through the FastAPI stack.
+Feature tests, full job workflow through the FastAPI stack.
 
 These tests exercise the complete request lifecycle with:
   - Real PostgreSQL (scraper_test database)
@@ -75,7 +75,7 @@ async def test_download_only_available_when_completed(
     )
     job_id = create_resp.json()["id"]
 
-    # Still RUNNING — download unavailable
+    # Still RUNNING, download unavailable
     download_resp = await client.get(f"/jobs/{job_id}/download")
     assert download_resp.status_code == 409
 

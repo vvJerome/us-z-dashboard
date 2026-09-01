@@ -33,16 +33,17 @@ describe("LogViewer", () => {
     vi.mocked(fetchJobLogs).mockResolvedValue({ lines: ["done"] });
     renderWithQuery(<LogViewer jobId="job-2" status="COMPLETED" />);
     await screen.findByText("done");
-    // refetchInterval should be false — just verify it renders without error
+    // refetchInterval should be false, just verify it renders without error
     expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
   });
 
-  it("scrolls to bottom ref on update", async () => {
+  it("never calls scrollIntoView, which would also scroll ancestor containers", async () => {
     const scrollIntoView = vi.fn();
     window.HTMLDivElement.prototype.scrollIntoView = scrollIntoView;
     vi.mocked(fetchJobLogs).mockResolvedValue({ lines: ["line 1", "line 2"] });
     renderWithQuery(<LogViewer jobId="job-3" status="RUNNING" />);
     await screen.findByText(/line 1/);
-    expect(scrollIntoView).toHaveBeenCalled();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });

@@ -51,7 +51,7 @@ _worker_controller = WorkerController()
 
 
 class FakeWorker:
-    """Stand-in for WorkerClient — no real SSH. Reads the shared controller."""
+    """Stand-in for WorkerClient, no real SSH. Reads the shared controller."""
 
     def __init__(self, vps) -> None:
         self._vps = vps
@@ -143,7 +143,7 @@ async def db(engine) -> AsyncSession:
 
 @pytest_asyncio.fixture
 async def remote_vps_id(db: AsyncSession) -> uuid.UUID:
-    """A registered, is_local=False VPS — for tests of the SFTP input push."""
+    """A registered, is_local=False VPS, for tests of the SFTP input push."""
     from sqlalchemy import select
 
     result = await db.execute(
@@ -167,11 +167,12 @@ async def remote_vps_id(db: AsyncSession) -> uuid.UUID:
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_jobs(db: AsyncSession) -> None:
-    from backend.models import Job
+    from backend.models import Job, ZeroBounceJob
     from sqlalchemy import delete
 
     yield
     await db.execute(delete(Job))
+    await db.execute(delete(ZeroBounceJob))
     await db.commit()
 
 

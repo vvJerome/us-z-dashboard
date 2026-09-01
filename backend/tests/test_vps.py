@@ -142,8 +142,8 @@ def _make_metrics_payload() -> dict:
         },
         "heartbeats": {"producer": None, "dispatcher": None},
         "discovery": {
-            "dns": 0,
-            "serper": 0,
+            "first_party": 0,
+            "third_party": 0,
             "failed": 0,
             "total_input": 0,
             "hit_rate_pct": 0,
@@ -153,6 +153,7 @@ def _make_metrics_payload() -> dict:
         "run_history": [],
         "recent_validated": [],
         "top_recent_errors": [],
+        "run_events": [],
     }
 
 

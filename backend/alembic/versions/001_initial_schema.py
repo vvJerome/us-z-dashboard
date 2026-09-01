@@ -1,4 +1,4 @@
-"""initial schema — users and jobs tables
+"""initial schema, users and jobs tables
 
 Revision ID: 001
 Revises:

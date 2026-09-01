@@ -33,7 +33,7 @@ describe("useJobLogs", () => {
     const { result } = renderHook(() => useJobLogs("job-1", "RUNNING"), {
       wrapper,
     });
-    // refetchInterval is configured via the query options — verify the query is enabled
+    // refetchInterval is configured via the query options, verify the query is enabled
     expect(result.current.fetchStatus).not.toBe("idle");
   });
 
@@ -41,13 +41,13 @@ describe("useJobLogs", () => {
     const { result } = renderHook(() => useJobLogs("job-1", "COMPLETED"), {
       wrapper,
     });
-    // Query still fetches once but interval is disabled — isLoading stays false after
+    // Query still fetches once but interval is disabled, isLoading stays false after
     expect(result.current.isPending).toBe(true); // initial fetch still fires
   });
 
   it("stops polling when job is FAILED", () => {
     renderHook(() => useJobLogs("job-1", "FAILED"), { wrapper });
-    // No assertion beyond no-throw — refetchInterval=false is set internally
+    // No assertion beyond no-throw, refetchInterval=false is set internally
   });
 
   it("is disabled when jobId is empty", () => {

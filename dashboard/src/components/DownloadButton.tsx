@@ -12,10 +12,10 @@ export function DownloadButton({ jobId, filename }: DownloadButtonProps) {
   return (
     <div className="flex flex-col items-start gap-1">
       <Button
+        variant="outline"
         size="sm"
         onClick={() => download(jobId, `result_${filename}`)}
         disabled={loading}
-        className="bg-emerald-700 text-white hover:bg-emerald-600"
       >
         {loading ? "Downloading…" : "Download"}
       </Button>

@@ -5,21 +5,16 @@ import type {
   JobListResponse,
   JobLogsResponse,
 } from "../types/job";
+import { request } from "./client";
 
 const BASE = "/api/jobs";
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error((body as { detail: string }).detail ?? res.statusText);
-  }
-  if (res.status === 204) return undefined as unknown as T;
-  return res.json() as Promise<T>;
-}
-
 export async function fetchJobs(): Promise<JobListResponse> {
   return request<JobListResponse>(BASE);
+}
+
+export async function fetchJob(id: string): Promise<Job> {
+  return request<Job>(`${BASE}/${id}`);
 }
 
 export async function fetchJobLogs(id: string): Promise<JobLogsResponse> {
@@ -36,12 +31,14 @@ export async function createJob(
   file: File,
   config: JobConfig,
   vpsId: string | null,
+  name?: string,
 ): Promise<Job> {
   const params = new URLSearchParams({
     enable_proxy: String(config.enable_proxy),
     skip_duplicates: String(config.skip_duplicates),
   });
   if (vpsId) params.set("vps_id", vpsId);
+  if (name) params.set("name", name);
   const body = new FormData();
   body.append("file", file);
   return request<Job>(`${BASE}?${params}`, { method: "POST", body });

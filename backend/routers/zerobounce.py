@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import uuid
 from pathlib import Path
 
@@ -9,10 +8,10 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_db, AsyncSessionLocal
+from ..database import get_db
 from ..models import ZeroBounceJob
 from ..schemas.zerobounce import ZeroBounceJobResponse
-from ..services import zerobounce_runner
+from ..services import zerobounce_queue
 from ..settings import get_settings
 from ..utils.paths import assert_within
 
@@ -38,7 +37,6 @@ async def create_zerobounce_job(  # TODO: add auth
 
     job_id = uuid.uuid4()
     input_dir = data_dir / "zerobounce" / str(job_id)
-    input_dir.mkdir(parents=True, exist_ok=True)
     input_path = input_dir / filename
     try:
         assert_within(input_path, data_dir)
@@ -48,9 +46,8 @@ async def create_zerobounce_job(  # TODO: add auth
     content = await file.read()
     if len(content) > 100 * 1024 * 1024:
         raise HTTPException(413, "File too large (max 100 MB)")
+    input_dir.mkdir(parents=True, exist_ok=True)
     input_path.write_bytes(content)
-
-    output_path = input_dir / "output.csv"
 
     job = ZeroBounceJob(
         id=job_id,
@@ -63,15 +60,7 @@ async def create_zerobounce_job(  # TODO: add auth
     await db.commit()
     await db.refresh(job)
 
-    asyncio.create_task(
-        zerobounce_runner.run_zerobounce(
-            job_id=job_id,
-            input_path=input_path,
-            output_path=output_path,
-            email_col=email_col,
-            session_factory=AsyncSessionLocal,
-        )
-    )
+    await zerobounce_queue.try_promote(db, data_dir)
 
     return ZeroBounceJobResponse.model_validate(job)
 
@@ -79,7 +68,9 @@ async def create_zerobounce_job(  # TODO: add auth
 @router.get("", response_model=list[ZeroBounceJobResponse])
 async def list_zerobounce_jobs(  # TODO: add auth
     db: AsyncSession = Depends(get_db),
+    data_dir: Path = Depends(_get_data_dir),
 ) -> list[ZeroBounceJobResponse]:
+    await zerobounce_queue.try_promote(db, data_dir)
     result = await db.execute(
         select(ZeroBounceJob).order_by(ZeroBounceJob.created_at.desc()).limit(50)
     )
@@ -90,7 +81,9 @@ async def list_zerobounce_jobs(  # TODO: add auth
 async def get_zerobounce_job(  # TODO: add auth
     job_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    data_dir: Path = Depends(_get_data_dir),
 ) -> ZeroBounceJobResponse:
+    await zerobounce_queue.try_promote(db, data_dir)
     result = await db.execute(select(ZeroBounceJob).where(ZeroBounceJob.id == job_id))
     job = result.scalar_one_or_none()
     if job is None:

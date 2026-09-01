@@ -11,7 +11,12 @@ vi.mock("../api/zerobounce", () => ({
   fetchZeroBounceJobs: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
 import { createZeroBounceJob } from "../api/zerobounce";
+import { toast } from "sonner";
 
 function renderModal(onClose = vi.fn()) {
   const client = new QueryClient({
@@ -51,6 +56,21 @@ describe("ZeroBounceModal", () => {
     ).not.toBeDisabled();
   });
 
+  it("the file-picker trigger is keyboard-focusable and opens the file dialog on Enter", async () => {
+    renderModal();
+    const trigger = screen.getByRole("button", { name: /choose input file/i });
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    const clickSpy = vi.spyOn(input, "click");
+
+    trigger.focus();
+    expect(trigger).toHaveFocus();
+
+    await userEvent.keyboard("{Enter}");
+    expect(clickSpy).toHaveBeenCalledOnce();
+  });
+
   it("defaults the email column to 'email'", () => {
     renderModal();
     expect(screen.getByLabelText(/email column name/i)).toHaveValue("email");
@@ -84,7 +104,7 @@ describe("ZeroBounceModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
-  it("shows an error message when the job fails to start", async () => {
+  it("toasts an error when the job fails to start", async () => {
     vi.mocked(createZeroBounceJob).mockRejectedValueOnce(
       new Error("Not enough ZeroBounce credits"),
     );
@@ -94,8 +114,8 @@ describe("ZeroBounceModal", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /run zerobounce/i }),
     );
-    expect(
-      await screen.findByText(/not enough zerobounce credits/i),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Not enough ZeroBounce credits"),
+    );
   });
 });

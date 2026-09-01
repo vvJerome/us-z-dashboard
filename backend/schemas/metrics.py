@@ -21,3 +21,4 @@ class MetricsResponse(BaseModel):
     run_history: list[dict[str, Any]]
     recent_validated: list[dict[str, Any]]
     top_recent_errors: list[dict[str, Any]]
+    run_events: list[dict[str, Any]]

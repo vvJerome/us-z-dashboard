@@ -128,7 +128,7 @@ class WorkerClient:
         if config.serper_api_key:
             entries["SERPER_API_KEY"] = config.serper_api_key
         # Single-quote every value: CONFIG is JSON with spaces, and secrets may
-        # contain shell metacharacters — both break `set -a; . job.env` unquoted.
+        # contain shell metacharacters, both break `set -a; . job.env` unquoted.
         return "\n".join(f"{k}={shlex.quote(v)}" for k, v in entries.items())
 
     @staticmethod
@@ -144,5 +144,5 @@ class WorkerClient:
             if code == "0":
                 return "FAILED", "pipeline exited 0 but produced no result.csv"
             return "FAILED", f"pipeline exited with code {code}"
-        # Unrecognized/empty output (e.g. transient SSH hiccup) — treat as still running.
+        # Unrecognized/empty output (e.g. transient SSH hiccup), treat as still running.
         return "RUNNING", None

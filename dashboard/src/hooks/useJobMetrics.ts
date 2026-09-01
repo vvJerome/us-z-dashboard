@@ -6,11 +6,11 @@ export function useJobMetrics(jobId: string) {
   return useQuery<MetricsResponse, Error>({
     queryKey: ["jobs", jobId, "metrics"],
     queryFn: () => fetchJobMetrics(jobId),
-    refetchInterval: 2000,
+    refetchInterval: 20000,
     retry: (_failureCount, error) =>
       !(error as Error)?.message?.includes("not RUNNING"),
-    retryDelay: 2000,
-    staleTime: 1500,
+    retryDelay: 20000,
+    staleTime: 19000,
     refetchIntervalInBackground: false,
   });
 }

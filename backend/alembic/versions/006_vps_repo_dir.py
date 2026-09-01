@@ -1,7 +1,7 @@
 """add vps_instances.repo_dir
 
 Each VpsInstance now carries its own universal-scraper-v3 checkout path
-instead of every worker sharing Settings.worker_repo_dir — required so a
+instead of every worker sharing Settings.worker_repo_dir, required so a
 second worker VPS with a different repo path can be registered.
 
 Revision ID: 006

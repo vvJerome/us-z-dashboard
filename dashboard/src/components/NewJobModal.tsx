@@ -1,4 +1,7 @@
+import { UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,10 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCreateJob } from "../hooks/useJobs";
+import { cn } from "@/lib/utils";
+import { useCreateJob, useJobs } from "../hooks/useJobs";
 import { useVps } from "../hooks/useVps";
-import type { JobConfig } from "../types/job";
 
 interface NewJobModalProps {
   onClose: () => void;
@@ -18,6 +22,14 @@ interface NewJobModalProps {
 
 const MAX_BYTES = 1024 * 1024 * 1024; // 1 GB
 const ALLOWED_EXT = new Set([".jsonl", ".csv"]);
+
+// enable_proxy is ignored by the pipeline unconditionally (Racknerd was
+// removed, Proxy25 is now the only SMTP backend - see us-z-3 ADR-0016), and
+// skip_duplicates is read but never actually passed to the merge step, which
+// always dedupes regardless. Neither is a real user choice, so there's no
+// toggle for them in this form - these are just the values the backend
+// still expects on the wire.
+const DEFAULT_CONFIG = { enable_proxy: false, skip_duplicates: true };
 
 function getExtension(name: string): string {
   const dot = name.lastIndexOf(".");
@@ -28,13 +40,18 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [config, setConfig] = useState<JobConfig>({
-    enable_proxy: false,
-    skip_duplicates: true,
-  });
+  const [dragActive, setDragActive] = useState(false);
+  const [name, setName] = useState("");
   const [vpsId, setVpsId] = useState<string | null>(null);
   const create = useCreateJob();
   const { data: vpsList } = useVps();
+  const { data: jobData } = useJobs();
+
+  const busyVpsIds = new Set(
+    (jobData?.jobs ?? [])
+      .filter((j) => j.status === "RUNNING" && j.vps_id)
+      .map((j) => j.vps_id),
+  );
 
   useEffect(() => {
     if (vpsList && vpsList.length > 0 && vpsId === null) {
@@ -43,13 +60,8 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
     }
   }, [vpsList, vpsId]);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = e.target.files?.[0] ?? null;
+  function validateAndSetFile(picked: File) {
     setFileError(null);
-    if (!picked) {
-      setFile(null);
-      return;
-    }
     if (!ALLOWED_EXT.has(getExtension(picked.name))) {
       setFileError("Only .jsonl and .csv files are accepted.");
       setFile(null);
@@ -63,18 +75,37 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
     setFile(picked);
   }
 
-  function handleToggle(key: keyof JobConfig) {
-    setConfig((prev) => ({ ...prev, [key]: !prev[key] }));
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0] ?? null;
+    setFileError(null);
+    if (!picked) {
+      setFile(null);
+      return;
+    }
+    validateAndSetFile(picked);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragActive(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) validateAndSetFile(dropped);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
     try {
-      await create.mutateAsync({ file, config, vpsId });
+      await create.mutateAsync({
+        file,
+        config: DEFAULT_CONFIG,
+        vpsId,
+        name: name.trim() || undefined,
+      });
+      toast.success("Enrichment job queued");
       onClose();
-    } catch {
-      // create.isError / create.error already drive the error message below.
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Submission failed");
     }
   }
 
@@ -84,101 +115,120 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New scraper job</DialogTitle>
+          <DialogTitle>New enrichment job</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
             <Label
-              htmlFor="new-job-file"
+              htmlFor="new-job-name"
               className="mb-1 block text-muted-foreground"
             >
+              Job name{" "}
+              <span className="text-muted-foreground/70">(optional)</span>
+            </Label>
+            <Input
+              id="new-job-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Defaults to the input filename"
+            />
+          </div>
+
+          <div>
+            <Label className="mb-1 block text-muted-foreground">
               Input file
             </Label>
-            <input
-              id="new-job-file"
-              ref={fileRef}
-              type="file"
-              accept=".jsonl,.csv"
-              onChange={handleFileChange}
-              className="w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-3 file:py-1 file:text-sm file:text-secondary-foreground"
-            />
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={handleDrop}
+              onClick={() => fileRef.current?.click()}
+              className={cn(
+                "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-2 border-dashed p-6 text-center transition-colors",
+                dragActive
+                  ? "border-primary bg-primary/5"
+                  : "border-input hover:bg-muted/30",
+              )}
+            >
+              <UploadCloud className="h-6 w-6 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Drag a .jsonl or .csv file here, or{" "}
+                <span className="text-foreground underline underline-offset-2">
+                  browse
+                </span>
+              </p>
+              {file && (
+                <p className="text-xs text-foreground">
+                  {file.name}, {(file.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              )}
+              <input
+                id="new-job-file"
+                ref={fileRef}
+                type="file"
+                accept=".jsonl,.csv"
+                onChange={handleFileChange}
+                onClick={(e) => e.stopPropagation()}
+                className="hidden"
+              />
+            </div>
             {fileError && (
               <p className="mt-1 text-xs text-destructive">{fileError}</p>
-            )}
-            {file && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {file.name} — {(file.size / 1024 / 1024).toFixed(2)} MB
-              </p>
             )}
           </div>
 
           {vpsList && vpsList.length > 0 && (
             <div>
-              <Label
-                htmlFor="new-job-vps"
-                className="mb-1 block text-muted-foreground"
-              >
+              <Label className="mb-1 block text-muted-foreground">
                 Run on VPS
               </Label>
-              <select
-                id="new-job-vps"
-                value={vpsId ?? ""}
-                onChange={(e) => setVpsId(e.target.value || null)}
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                {vpsList.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                    {v.is_local ? " (local)" : ` — ${v.ssh_host}`}
-                  </option>
-                ))}
-              </select>
+              <div role="radiogroup" className="flex flex-col gap-2">
+                {vpsList.map((v) => {
+                  const busy = busyVpsIds.has(v.id);
+                  const selected = vpsId === v.id;
+                  return (
+                    <label
+                      key={v.id}
+                      className={cn(
+                        "flex cursor-pointer items-center justify-between rounded-lg border p-3 text-sm transition-colors",
+                        selected
+                          ? "border-primary bg-primary/5"
+                          : "border-input hover:bg-muted/30",
+                      )}
+                    >
+                      <span className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="new-job-vps"
+                          value={v.id}
+                          checked={selected}
+                          onChange={() => setVpsId(v.id)}
+                          className="h-4 w-4"
+                        />
+                        <span className="flex flex-col">
+                          <span className="font-medium text-foreground">
+                            {v.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {v.is_local ? "Local" : v.ssh_host}
+                          </span>
+                        </span>
+                      </span>
+                      <Badge variant={busy ? "warning" : "secondary"}>
+                        {busy ? "Busy" : "Idle"}
+                      </Badge>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                A busy worker queues this job instead of starting it right away.
+              </p>
             </div>
-          )}
-
-          <div className="flex flex-col gap-3">
-            <Label className="text-muted-foreground">Options</Label>
-            {(
-              [
-                {
-                  key: "enable_proxy",
-                  label: "Enable proxy",
-                  desc: "Route SMTP through the proxy tunnel",
-                },
-                {
-                  key: "skip_duplicates",
-                  label: "Skip duplicates",
-                  desc: "Deduplicate output records",
-                },
-              ] as { key: keyof JobConfig; label: string; desc: string }[]
-            ).map(({ key, label, desc }) => (
-              <label
-                key={key}
-                className="flex cursor-pointer items-start gap-3"
-              >
-                <input
-                  type="checkbox"
-                  checked={config[key]}
-                  onChange={() => handleToggle(key)}
-                  className="mt-0.5 h-4 w-4 rounded border-input bg-transparent accent-primary"
-                />
-                <span>
-                  <span className="text-sm text-foreground">{label}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {desc}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
-
-          {create.isError && (
-            <p className="text-xs text-destructive">
-              {create.error instanceof Error
-                ? create.error.message
-                : "Submission failed"}
-            </p>
           )}
 
           <DialogFooter>
@@ -186,7 +236,7 @@ export function NewJobModal({ onClose }: NewJobModalProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={submitDisabled}>
-              {create.isPending ? "Submitting…" : "Run scraper"}
+              {create.isPending ? "Submitting…" : "Run enrichment"}
             </Button>
           </DialogFooter>
         </form>

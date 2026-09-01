@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
@@ -10,10 +11,31 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from .database import AsyncSessionLocal, engine
-from .models import VpsInstance
+from .models import PLACEHOLDER_USER_ID, User, VpsInstance
 from .routers import inspections, jobs, metrics, vps, zerobounce
-from .services import job_queue
+from .services import job_queue, zerobounce_queue
 from .settings import get_settings
+
+
+async def _seed_placeholder_user() -> None:
+    """Insert the placeholder user row every Job.user_id currently references.
+
+    No real accounts exist yet (auth is deferred), but Job.user_id has a
+    foreign key to users.id, without this row, the very first POST /jobs
+    on a fresh database 500s with an IntegrityError.
+    """
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.id == PLACEHOLDER_USER_ID))
+        if result.scalar_one_or_none() is not None:
+            return
+        db.add(
+            User(
+                id=PLACEHOLDER_USER_ID,
+                email="placeholder@local",
+                password_hash="unused",
+            )
+        )
+        await db.commit()
 
 
 async def _seed_worker_vps() -> None:
@@ -41,18 +63,41 @@ async def _seed_worker_vps() -> None:
         await db.commit()
 
 
+logger = logging.getLogger(__name__)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    task: asyncio.Task | None = None
+    tasks: list[asyncio.Task] = []
+    try:
+        await _seed_placeholder_user()
+    except Exception:
+        logger.exception("_seed_placeholder_user failed at startup (non-fatal)")
+
     try:
         await _seed_worker_vps()
-        if get_settings().queue_loop_enabled:
-            task = asyncio.create_task(job_queue.queue_loop())
     except Exception:
-        pass  # non-fatal — DB may not be reachable during tests or first-boot race
+        logger.exception("_seed_worker_vps failed at startup (non-fatal)")
+
+    try:
+        async with AsyncSessionLocal() as db:
+            await zerobounce_queue.reconcile_orphaned(db)
+    except Exception:
+        logger.exception("reconcile_orphaned failed at startup (non-fatal)")
+
+    # Queue loops must start even if the steps above failed (e.g. transient DB
+    # hiccup during the first-boot race), silently skipping them here would
+    # wedge job dispatch entirely, with no error surfaced anywhere.
+    try:
+        if get_settings().queue_loop_enabled:
+            tasks.append(asyncio.create_task(job_queue.queue_loop()))
+            tasks.append(asyncio.create_task(zerobounce_queue.queue_loop()))
+    except Exception:
+        logger.exception("Failed to start queue loops at startup")
     yield
-    if task is not None:
+    for task in tasks:
         task.cancel()
+    for task in tasks:
         try:
             await task
         except asyncio.CancelledError:

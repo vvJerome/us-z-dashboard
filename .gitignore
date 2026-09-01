@@ -21,6 +21,12 @@ dist/
 *.tsbuildinfo
 coverage/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Environment — never commit secrets
 .env
 .env.local

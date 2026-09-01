@@ -21,6 +21,7 @@ class JobResponse(BaseModel):
 
     id: uuid.UUID
     status: JobStatus
+    name: str | None
     input_filename: str
     config: dict
     worker_session: str | None

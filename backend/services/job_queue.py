@@ -38,7 +38,7 @@ async def _vps_of(db: AsyncSession, job: Job) -> VpsInstance | None:
 
 
 async def _busy_vps_ids(db: AsyncSession) -> set[uuid.UUID]:
-    """vps_ids that currently have a RUNNING job — each VPS runs at most one."""
+    """vps_ids that currently have a RUNNING job, each VPS runs at most one."""
     result = await db.execute(select(Job.vps_id).where(Job.status == "RUNNING"))
     return {row[0] for row in result.all() if row[0] is not None}
 
@@ -58,7 +58,7 @@ async def _sync_one(db: AsyncSession, job: Job) -> None:
         return
     try:
         new_status, error = await _worker_for(vps).get_status(job.id)
-    except Exception as exc:  # SSH hiccup — leave state untouched, retry next poll
+    except Exception as exc:  # SSH hiccup, leave state untouched, retry next poll
         logger.warning("Worker status fetch failed for %s: %s", job.id, exc)
         return
     if new_status == job.status:
@@ -105,7 +105,7 @@ async def _promote_one(db: AsyncSession, vps: VpsInstance) -> None:
     worker = _worker_for(vps)
     try:
         if await worker.has_active_session():
-            return  # worker busy with an out-of-band run — retry next cycle
+            return  # worker busy with an out-of-band run, retry next cycle
         if not vps.is_local:
             await push_input(vps, job.id, job.input_file_key, job.input_filename)
         config = JobConfig(**job.config)
